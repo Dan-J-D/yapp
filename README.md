@@ -105,9 +105,10 @@ so voice-lab can find the audio files.
 
 ## Network binding
 
-The web container uses host networking. `BIND_HOST` in `.env` picks the address the HTTP (8080)
-and HTTPS (8443) servers listen on, e.g. `BIND_HOST=10.0.0.1` to serve only over WireGuard.
-- Set `LAN_IPS` to the same address so the certificate matches it.
+The web container uses host networking. `BIND_HOST` in `.env` is a comma-separated list of addresses
+the HTTP (8080) and HTTPS (8443) servers listen on. For example, `BIND_HOST=10.0.0.1,127.0.0.1`
+serves on WireGuard and localhost only.
+- Set `LAN_IPS` to the same addresses so the certificate matches them (127.0.0.1 and `localhost` are always included).
 - voice-lab only listens on `127.0.0.1:8765`. Ollama is reached on `127.0.0.1:11434`.
 - If the interface isn't up yet, the server can't bind. Docker keeps restarting the container
   until it can.

@@ -28,5 +28,5 @@ COPY docker-entrypoint.sh ./
 # uid 1000 ("node") so files on the ./data volume belong to the host user.
 USER node
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "const h=process.env.HOST;fetch('http://'+(!h||h==='0.0.0.0'||h==='::'?'127.0.0.1':h)+':'+(process.env.HTTP_PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+  CMD node -e "const h=(process.env.HOST||'').split(',').find(x=>x==='127.0.0.1')||(process.env.HOST||'').split(',')[0];fetch('http://'+(!h||h==='0.0.0.0'||h==='::'?'127.0.0.1':h)+':'+(process.env.HTTP_PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/tini", "--", "./docker-entrypoint.sh"]

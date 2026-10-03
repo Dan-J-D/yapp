@@ -55,7 +55,7 @@ document.querySelectorAll('.panel').forEach(p=>p.hidden=p.dataset.os!==t.dataset
 </script></body></html>`;
 }
 
-export function startHttpServer({ port, httpsPort, certDir }) {
+export function startHttpServer({ port, httpsPort, certDir, hosts = [process.env.HOST ?? '0.0.0.0'] }) {
   const file = (n) => path.join(certDir, n);
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
@@ -89,6 +89,15 @@ export function startHttpServer({ port, httpsPort, certDir }) {
       return send(500, 'text/plain', String(e));
     }
   });
-  server.listen(port, process.env.HOST ?? '0.0.0.0', () => console.log(`[http] cert landing on http://${process.env.HOST ?? "0.0.0.0"}:${port}`));
+  // one listener per bind address (same request handler)
+  const handler = server.listeners('request')[0];
+  hosts.forEach((host, i) => {
+    const srv = i === 0 ? server : http.createServer(handler);
+    srv.on('error', (e) => {
+      console.error(`[http] cannot listen on ${host}:${port}: ${e.message}`);
+      process.exit(1);
+    });
+    srv.listen(port, host, () => console.log(`[http] cert landing on http://${host.includes(':') ? `[${host}]` : host}:${port}`));
+  });
   return server;
 }

@@ -15,9 +15,13 @@ const publicHttpsPort = Number(process.env.HTTPS_PUBLIC_PORT ?? httpsPort);
 startHttpServer({ port: httpPort, httpsPort: publicHttpsPort, certDir: dir });
 await import('../dist/server/entry.mjs');
 
+// Reach ourselves on the bind address (loopback only works when bound to all interfaces).
+const bind = process.env.HOST ?? '0.0.0.0';
+const selfHost = ['0.0.0.0', '::', ''].includes(bind) ? '127.0.0.1' : bind;
+
 // Warm up the app so the job queue and push scheduler start without waiting for a visit.
 setTimeout(() => {
   https
-    .get({ host: '127.0.0.1', port: httpsPort, path: '/api/health', rejectUnauthorized: false }, (r) => r.resume())
+    .get({ host: selfHost, port: httpsPort, path: '/api/health', rejectUnauthorized: false }, (r) => r.resume())
     .on('error', (e) => console.warn('[start] warm-up failed:', e.message));
 }, 1500);

@@ -36,6 +36,9 @@ docker compose up -d --build
 4. Install the app: browser menu › *Add to Home screen* / *Install app*.
 
 Requirements:
+- The **native Docker Engine**, not Docker Desktop. On Linux, Docker Desktop runs containers in a
+  VM, so it has no NVIDIA GPU support and its host networking can't bind host interfaces such as
+  `wg0`. Switch with `docker context use default`; `docker context ls` shows the current context.
 - Docker with the NVIDIA container toolkit (`gpus: all`).
 - Ollama running on the host with the model pulled: `ollama pull qwen3:8b`.
 - No GPU available, e.g. in CI or a sandbox? Run on CPU with Whisper `small`:
@@ -99,6 +102,15 @@ WHISPER_MODEL=base .venv/bin/uvicorn app:app --port 8765
 
 When `web` runs outside Docker, set `VOICE_LAB_DATA_DIR` to the same absolute path as `DATA_DIR`,
 so voice-lab can find the audio files.
+
+## Network binding
+
+The web container uses host networking. `BIND_HOST` in `.env` picks the address the HTTP (8080)
+and HTTPS (8443) servers listen on, e.g. `BIND_HOST=10.0.0.1` to serve only over WireGuard.
+- Set `LAN_IPS` to the same address so the certificate matches it.
+- voice-lab only listens on `127.0.0.1:8765`. Ollama is reached on `127.0.0.1:11434`.
+- If the interface isn't up yet, the server can't bind. Docker keeps restarting the container
+  until it can.
 
 ## Certificates
 

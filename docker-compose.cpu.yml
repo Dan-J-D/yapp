@@ -1,0 +1,8 @@
+# CPU fallback for environments without GPU access (CI, sandboxes):
+#   docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d --build
+services:
+  voice-lab:
+    gpus: !reset null
+    environment:
+      WHISPER_DEVICE: cpu
+      WHISPER_MODEL: ${WHISPER_MODEL_CPU:-small}

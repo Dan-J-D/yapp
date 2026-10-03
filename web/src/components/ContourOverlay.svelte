@@ -19,6 +19,10 @@
     const css = getComputedStyle(document.documentElement);
     const m: ContourPts | null = model ? centre(model.map((v, i) => [i / (model!.length - 1), v])) : null;
     const t = take ? centre(normalizeTime(take)) : null;
+    // bridge unvoiced gaps shorter than 200 ms (time is normalised to 0..1 here)
+    const voiced = take?.filter(([, v]) => v != null) ?? [];
+    const span = voiced.length > 1 ? voiced[voiced.length - 1][0] - voiced[0][0] : 1;
+    const takeGap = span > 0 ? 0.2 / span : 0.08;
     const vals = [...(m ?? []), ...(t ?? [])].map(([, v]) => v).filter((v): v is number => v != null);
     const lo = Math.min(-6, ...vals) - 1;
     const hi = Math.max(6, ...vals) + 1;
@@ -30,7 +34,7 @@
     g.stroke();
     const pad = 8;
     if (m) drawContour(g, m, { w: w - pad * 2, h, lo, hi, t0: 0, t1: 1, color: css.getPropertyValue('--model'), width: 3, dash: [6, 6], gap: 1 });
-    if (t) drawContour(g, t, { w: w - pad * 2, h, lo, hi, t0: 0, t1: 1, color: css.getPropertyValue('--accent'), width: 3, gap: 0.08 });
+    if (t) drawContour(g, t, { w: w - pad * 2, h, lo, hi, t0: 0, t1: 1, color: css.getPropertyValue('--accent'), width: 3, gap: takeGap });
   }
   $effect(() => {
     void model;

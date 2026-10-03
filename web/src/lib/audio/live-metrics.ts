@@ -90,7 +90,7 @@ export class LiveAnalyzer {
     let hz: number | null = null;
     if (db > this.vad.floorDb + 6) {
       const [p, clarity] = this.detector.findPitch(frame, this.sampleRate);
-      if (clarity > 0.88 && p > 0) hz = this.fixOctave(p);
+      if (clarity > 0.8 && p > 0) hz = this.fixOctave(p);
     }
     const voiced = hz != null;
     const speaking = this.vad.update(db, voiced, dt);

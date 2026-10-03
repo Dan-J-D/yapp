@@ -1,0 +1,35 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SessionDetail from '../../components/session/SessionDetail.svelte';
+import { loadSession } from '../../lib/server/sessions';
+import { getBaseline } from '../../lib/server/store';
+import { DEFAULT_BANDS } from '../../lib/scoring';
+import { downsampleContour, sessionLabel } from '../../lib/dashboard';
+
+const data = loadSession(Astro.params.id ?? '');
+if (!data) {
+  Astro.response.status = 404;
+}
+const bands = getBaseline()?.bands ?? DEFAULT_BANDS;
+// Keep the hydration payload small: long recordings have tens of thousands of contour frames.
+const initial = data && {
+  ...data,
+  recordings: data.recordings.map((r) => {
+    const c = r.analysis?.contour;
+    if (!r.analysis || !c || c.length <= 3000) return r;
+    const [xs, ys] = downsampleContour(c, 3000);
+    return { ...r, analysis: { ...r.analysis, contour: xs.map((t, i) => [t, ys[i]] as [number, number | null]) } };
+  }),
+};
+---
+<Layout title={data ? sessionLabel(data.session) : 'Not found'}>
+  {data ? (
+    <SessionDetail client:load initial={initial} bands={bands} />
+  ) : (
+    <div class="card space-y-2">
+      <h1 class="text-xl font-bold">Session not found</h1>
+      <p class="text-muted">It may have been deleted.</p>
+      <a href="/history" class="btn">Back to History</a>
+    </div>
+  )}
+</Layout>

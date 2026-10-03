@@ -76,7 +76,9 @@ async function notify(last?: { item: UploadItem; result: UploadResult }) {
 
 /** Store an upload and try to send it right away. Resolves with the server result if online. */
 export async function enqueueUpload(item: Omit<UploadItem, 'createdAt' | 'tries'>): Promise<UploadResult | null> {
-  const full: UploadItem = { ...item, createdAt: Date.now(), tries: 0 };
+  // Plain JSON copies: reactive (Proxy) objects can't be structured-cloned into IndexedDB.
+  const plain = <T,>(v: T): T => (v === undefined ? v : (JSON.parse(JSON.stringify(v)) as T));
+  const full: UploadItem = { ...item, session: plain(item.session), meta: plain(item.meta), createdAt: Date.now(), tries: 0 };
   await tx('readwrite', (s) => s.put(full));
   await notify();
   return (await flush(item.clientId)) ?? null;
@@ -99,30 +101,40 @@ async function send(item: UploadItem): Promise<UploadResult> {
   return (await r.json()) as UploadResult;
 }
 
-let flushing: Promise<unknown> | null = null;
+let flushing: Promise<boolean> | null = null;
 const results = new Map<string, UploadResult>();
 
-/** Upload everything queued, in creation order (so session parts arrive in order). */
-export async function flush(waitFor?: string): Promise<UploadResult | undefined> {
-  if (!flushing) {
-    flushing = (async () => {
-      const items = (await pendingUploads()).sort((a, b) => a.createdAt - b.createdAt);
-      for (const item of items) {
-        if (!navigator.onLine) break;
-        try {
-          const result = await send(item);
-          results.set(item.clientId, result);
-          await tx('readwrite', (s) => s.delete(item.clientId));
-          await notify({ item, result });
-        } catch (e) {
-          await tx('readwrite', (s) => s.put({ ...item, tries: item.tries + 1, lastError: (e as Error).message }));
-          await notify();
-          break; // keep order; retry later
-        }
+/** One pass over the queue in creation order (so session parts arrive in order). Resolves false on failure. */
+function flushOnce(): Promise<boolean> {
+  return (flushing ??= (async () => {
+    const items = (await pendingUploads()).sort((a, b) => a.createdAt - b.createdAt);
+    for (const item of items) {
+      if (!navigator.onLine) return false;
+      try {
+        const result = await send(item);
+        results.set(item.clientId, result);
+        await tx('readwrite', (s) => s.delete(item.clientId));
+        await notify({ item, result });
+      } catch (e) {
+        await tx('readwrite', (s) => s.put({ ...item, tries: item.tries + 1, lastError: (e as Error).message }));
+        await notify();
+        return false; // keep order; retry later
       }
-    })().finally(() => (flushing = null));
+    }
+    return true;
+  })().finally(() => (flushing = null)));
+}
+
+/**
+ * Upload everything queued. With `waitFor`, keeps going until that item is sent (an item queued
+ * while a pass is already running is picked up by the next pass) or a pass fails.
+ */
+export async function flush(waitFor?: string): Promise<UploadResult | undefined> {
+  for (let pass = 0; pass < 5; pass++) {
+    const ok = await flushOnce();
+    if (!waitFor || results.has(waitFor) || !ok) break;
+    if (!(await pendingUploads()).some((x) => x.clientId === waitFor)) break;
   }
-  await flushing;
   return waitFor ? results.get(waitFor) : undefined;
 }
 

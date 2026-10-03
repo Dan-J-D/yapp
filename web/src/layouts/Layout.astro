@@ -33,7 +33,13 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
     <title>{title ? `${title} · Yapp` : 'Yapp'}</title>
     <script is:inline>
       try { const t = localStorage.getItem('yapp-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
-      if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+      if ('serviceWorker' in navigator) addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+        // once per tab session (logged-in pages only): cache the main pages for offline use
+        if (location.pathname !== '/login' && !sessionStorage.getItem('yapp-warm')) {
+          navigator.serviceWorker.ready.then((r) => { r.active?.postMessage('warm'); sessionStorage.setItem('yapp-warm', '1'); }).catch(() => {});
+        }
+      });
     </script>
   </head>
   <body class="min-h-dvh">

@@ -10,7 +10,8 @@
     height = 200,
     yLabel = '',
     bands = [] as { from: number; to: number; color: string }[],
-  }: { x: number[]; series: { label: string; data: (number | null)[]; color: string; dash?: boolean }[]; height?: number; yLabel?: string; bands?: { from: number; to: number; color: string }[] } = $props();
+    yRange,
+  }: { x: number[]; series: { label: string; data: (number | null)[]; color: string; dash?: boolean }[]; height?: number; yLabel?: string; bands?: { from: number; to: number; color: string }[]; /** soft y-range: always include these values */ yRange?: [number, number] } = $props();
 
   let el: HTMLDivElement;
   onMount(() => {
@@ -24,7 +25,10 @@
       height,
       cursor: { drag: { x: false, y: false } },
       legend: { show: series.length > 1 },
-      scales: { x: { time: true } },
+      scales: {
+        x: { time: true },
+        ...(yRange ? { y: { range: (_u: uPlot, min: number, max: number): uPlot.Range.MinMax => [Math.min(min ?? yRange[0], yRange[0]), Math.max(max ?? yRange[1], yRange[1])] } } : {}),
+      },
       axes: [
         { stroke: muted, grid: { stroke: line, width: 1 }, ticks: { stroke: line } },
         { stroke: muted, grid: { stroke: line, width: 1 }, ticks: { stroke: line }, label: yLabel, size: 48 },
@@ -45,8 +49,12 @@
           (u: uPlot) => {
             const g = u.ctx;
             for (const b of bands) {
-              const y0 = u.valToPos(b.to, 'y', true);
-              const y1 = u.valToPos(b.from, 'y', true);
+              // clamp to the plot area so bands outside the y-range don't paint over the axes
+              const top = u.bbox.top;
+              const bottom = u.bbox.top + u.bbox.height;
+              const y0 = Math.max(top, Math.min(bottom, u.valToPos(b.to, 'y', true)));
+              const y1 = Math.max(top, Math.min(bottom, u.valToPos(b.from, 'y', true)));
+              if (y1 <= y0) continue;
               g.fillStyle = v(b.color);
               g.globalAlpha = 0.08;
               g.fillRect(u.bbox.left, y0, u.bbox.width, y1 - y0);

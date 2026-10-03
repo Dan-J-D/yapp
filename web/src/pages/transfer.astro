@@ -1,0 +1,9 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TransferTest from '../components/drills/TransferTest.svelte';
+---
+<Layout title="Transfer test">
+  <a href="/drills" class="text-sm text-muted">← Drills</a>
+  <h1 class="mb-4 mt-1 text-2xl font-bold">Weekly transfer test</h1>
+  <TransferTest client:only="svelte" />
+</Layout>

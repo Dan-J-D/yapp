@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import HistoryList from '../components/HistoryList.svelte';
+const filter = Astro.url.searchParams.get('filter') ?? 'all';
+---
+<Layout title="History">
+  <h1 class="mb-1 text-2xl font-bold">History</h1>
+  <p class="mb-4 text-muted">Every session, newest first. Open one to replay it, tag fillers and see the full analysis.</p>
+  <HistoryList client:load initialFilter={filter} />
+</Layout>

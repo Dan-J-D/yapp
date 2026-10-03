@@ -2,7 +2,7 @@
 const VERSION = 'yapp-v1';
 const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/worklets/capture.js'];
 // Pages worth having offline even before first visit (recording works offline).
-const WARM = ['/daily', '/yap', '/yap/L1', '/everyday', '/drills', '/warmup'];
+const WARM = ['/daily', '/yap', '/yap/L1', '/yap/L2', '/yap/L3', '/yap/L4', '/everyday', '/drills', '/warmup', '/transfer'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -19,6 +19,46 @@ self.addEventListener('install', (e) => {
         }),
       );
       self.skipWaiting();
+    })(),
+  );
+});
+
+// Pages ask for a re-warm once logged in (install may have run before the session cookie existed).
+self.addEventListener('message', (e) => {
+  if (e.data !== 'warm') return;
+  e.waitUntil(
+    (async () => {
+      const c = await caches.open(VERSION);
+      const assets = new Set();
+      const collect = (text, base) => {
+        for (const m of text.matchAll(/(?:\/_astro\/|\.\/)[\w.\-]+\.(?:js|css)/g)) assets.add(new URL(m[0], base).pathname);
+      };
+      for (const u of ['/', ...WARM]) {
+        try {
+          const r = await fetch(u, { credentials: 'same-origin', redirect: 'manual' });
+          if (!r.ok || r.type !== 'basic') continue;
+          collect(await r.clone().text(), location.origin + u);
+          await c.put(u, r);
+        } catch {}
+      }
+      // Island chunks and the chunks they import, so warmed pages also hydrate offline.
+      const done = new Set();
+      while (assets.size > done.size) {
+        for (const a of [...assets]) {
+          if (done.has(a) || !a.startsWith('/_astro/')) {
+            done.add(a);
+            continue;
+          }
+          done.add(a);
+          try {
+            if (await c.match(a)) continue;
+            const r = await fetch(a);
+            if (!r.ok) continue;
+            if (a.endsWith('.js')) collect(await r.clone().text(), location.origin + a);
+            await c.put(a, r);
+          } catch {}
+        }
+      }
     })(),
   );
 });
@@ -69,11 +109,7 @@ self.addEventListener('fetch', (e) => {
           }
           return r;
         } catch {
-          return (
-            (await caches.match(url.pathname)) ||
-            (url.pathname.startsWith('/yap/') && (await caches.match('/yap/L1'))) ||
-            (await caches.match('/offline.html'))
-          );
+          return (await caches.match(url.pathname)) || (await caches.match('/offline.html'));
         }
       })(),
     );

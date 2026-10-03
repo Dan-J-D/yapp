@@ -266,7 +266,7 @@ export function scaleBands(measured: number, reference: number, b: Bands = DEFAU
   return { monotone: b.monotone * k, low: b.low * k, typical: b.typical * k };
 }
 
-const HEALTHY: Required<Pick<BaselineRef, 'stSd' | 'rangeSt' | 'dbSd' | 'phraseSlope'>> = {
+const HEALTHY: Record<'stSd' | 'rangeSt' | 'dbSd' | 'phraseSlope', number> = {
   stSd: 2.44,
   rangeSt: 8,
   dbSd: 6,

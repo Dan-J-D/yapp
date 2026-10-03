@@ -1,0 +1,10 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DrillRunner from '../components/drills/DrillRunner.svelte';
+---
+<Layout title="Warm-up">
+  <a href="/drills" class="text-sm text-muted">← Drills</a>
+  <h1 class="mb-1 mt-1 text-2xl font-bold">Warm-up</h1>
+  <p class="mb-4 text-sm text-muted">Straw phonation, lip trills and sirens make your voice easier to move — a 2-minute warm-up, not the training itself.</p>
+  <DrillRunner client:only="svelte" drill="warmup" />
+</Layout>

@@ -1,0 +1,191 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DashboardCharts from '../components/dash/DashboardCharts.svelte';
+import TodayChallenge from '../components/dash/TodayChallenge.svelte';
+import { appState, sessionSeries, streakCalendar, tagComparison, warmupRangeSeries } from '../lib/server/stats';
+import { DEFAULT_BANDS } from '../lib/scoring';
+import { MASTERY_WINDOW, PASSES_TO_UNLOCK, TONALITY_STEPS, YAP_LEVELS } from '../lib/progression';
+import { buildCalendar, calendarMonths } from '../lib/dashboard';
+
+const WEEKS = 20;
+const state = appState();
+const series = sessionSeries(140);
+const warmup = warmupRangeSeries(140);
+const cal = buildCalendar(streakCalendar(WEEKS * 7 + 7), WEEKS);
+const months = calendarMonths(cal);
+const compare = tagComparison(30) as Record<'drill' | 'everyday', { n: number; stSd: number | null; expressiveness: number | null; fillersPerMin: number | null; wpm: number | null }>;
+const bands = state.baseline?.bands ?? DEFAULT_BANDS;
+const practiceDays = cal.flat().filter((c) => c.level > 0).length;
+const totalMinutes = cal.flat().reduce((s, c) => s + c.minutes, 0);
+const today = state.today;
+const f = (v: number | null | undefined, d = 1) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d));
+const masteryPct = Math.round(state.tonality.mastery.rate * 100);
+const calBg = ['var(--surface-2)', 'color-mix(in oklab, var(--accent) 30%, var(--surface-2))', 'color-mix(in oklab, var(--accent) 55%, var(--surface-2))', 'color-mix(in oklab, var(--accent) 80%, var(--surface-2))', 'var(--accent)'];
+const dayNames = ['Mon', '', 'Wed', '', 'Fri', '', ''];
+const hour = new Date().getHours();
+const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+const cmpRows: { label: string; key: 'stSd' | 'expressiveness' | 'fillersPerMin' | 'wpm'; d: number; better: 'up' | 'down' | null }[] = [
+  { label: 'Pitch variation (ST SD)', key: 'stSd', d: 2, better: 'up' },
+  { label: 'Expressiveness', key: 'expressiveness', d: 0, better: 'up' },
+  { label: 'Fillers / min', key: 'fillersPerMin', d: 1, better: 'down' },
+  { label: 'Speech rate (WPM)', key: 'wpm', d: 0, better: null },
+];
+---
+<Layout title="Home" wide>
+  <h1 class="sr-only">Dashboard</h1>
+  <p class="mb-3 text-muted">{greeting}.</p>
+
+  {!state.baseline && (
+    <a href="/calibrate" class="card mb-4 block border-accent bg-accent-soft">
+      <div class="label text-accent">First step</div>
+      <div class="mt-1 text-lg font-bold">Calibrate your voice (about 2 minutes)</div>
+      <p class="mt-1 text-sm">
+        A 60-second free-talk sample plus a short reading. It sets your pitch range and filler rate, so meters and scores are measured against your own voice.
+      </p>
+      <span class="btn btn-primary mt-3">Start calibration →</span>
+    </a>
+  )}
+
+  <div class="grid gap-4 md:grid-cols-2">
+    <section class="card space-y-4" aria-labelledby="today-h">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="today-h" class="label">Today</h2>
+          <div class="mt-1 text-lg font-bold">{today?.dailyDone ? 'Daily session done ✓' : 'Daily session not done yet'}</div>
+          <div class="text-sm text-muted">{today ? `${Math.round(today.minutes)} min · ${today.sessions} session${today.sessions === 1 ? '' : 's'} today` : 'No practice yet today'}</div>
+        </div>
+        <div class="shrink-0 text-center" aria-label={`Streak: ${state.streak} days`}>
+          <div class="stat text-accent">{state.streak}</div>
+          <div class="label">day streak</div>
+        </div>
+      </div>
+      {!today?.dailyDone && <a href="/daily" class="btn btn-primary btn-lg w-full">Start daily session</a>}
+      {state.transferDue && (
+        <a href="/transfer" class="flex items-center gap-3 rounded-xl border border-model/50 p-3">
+          <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-model/15 font-bold text-model" aria-hidden="true">T</span>
+          <span class="min-w-0 flex-1">
+            <span class="block font-semibold">Weekly transfer test due</span>
+            <span class="block text-sm text-muted">2-minute monologue, no feedback — the honest carryover check.</span>
+          </span>
+          <span aria-hidden="true">→</span>
+        </a>
+      )}
+      <div class="border-t border-line pt-4">
+        <TodayChallenge client:load done={!!today?.challengeDone} />
+      </div>
+    </section>
+
+    <section class="card space-y-4" aria-labelledby="prog-h">
+      <h2 id="prog-h" class="label">Progress</h2>
+      <a href="/drills" class="block">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="font-semibold">Tonality step {state.tonality.step}/{TONALITY_STEPS.length}</span>
+          <span class="text-sm tabular-nums text-muted">{masteryPct}% on target</span>
+        </div>
+        <div class="text-sm text-muted">{state.tonality.name}</div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-surface-2" role="progressbar" aria-label="Mastery at current step" aria-valuemin="0" aria-valuemax="100" aria-valuenow={masteryPct}>
+          <div class="h-full rounded-full bg-accent" style={`width:${masteryPct}%`}></div>
+        </div>
+        <div class="mt-1 text-xs text-muted">
+          {state.tonality.mastery.count} reps at this step · advance at 80% over {MASTERY_WINDOW} reps · feedback: {state.tonality.feedback}
+          {state.tonality.mastery.ready && <span class="font-semibold text-good"> · ready to advance</span>}
+        </div>
+      </a>
+      <a href="/yap" class="block border-t border-line pt-4">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="font-semibold">Yap L{state.yap.level} · {state.yap.name}</span>
+          <span class="text-sm tabular-nums text-muted">{state.yap.passes}/{PASSES_TO_UNLOCK} passes</span>
+        </div>
+        <div class="mt-2 flex gap-1.5" aria-label={`${state.yap.passes} of ${PASSES_TO_UNLOCK} passes`}>
+          {Array.from({ length: PASSES_TO_UNLOCK }, (_, i) => (
+            <span class={`h-2 flex-1 rounded-full ${i < state.yap.passes ? 'bg-accent' : 'bg-surface-2'}`}></span>
+          ))}
+        </div>
+        <div class="mt-1 text-xs text-muted">{state.yap.level < YAP_LEVELS.length ? `Pass ${PASSES_TO_UNLOCK}× to unlock L${state.yap.level + 1}` : 'Top level — keep yapping'}</div>
+      </a>
+      {state.baseline && (
+        <div class="border-t border-line pt-4 text-sm text-muted">
+          Baseline: {f(state.baseline.stSd, 2)} ST SD · {f(state.baseline.fillersPerMin)} fillers/min · {f(state.baseline.wpm, 0)} WPM
+        </div>
+      )}
+    </section>
+  </div>
+
+  <h2 class="mb-2 mt-8 text-lg font-bold">Trends</h2>
+  {series.length === 0 ? (
+    <div class="card text-sm text-muted">Charts appear after your first analysed session.</div>
+  ) : (
+    <DashboardCharts client:only="svelte" series={series} warmupRange={warmup} bands={bands} />
+  )}
+
+  <div class="mt-4 grid gap-4 md:grid-cols-2">
+    <section class="card space-y-3" aria-labelledby="cal-h">
+      <div class="flex items-baseline justify-between gap-2">
+        <h2 id="cal-h" class="font-semibold">Practice calendar</h2>
+        <span class="text-xs text-muted">{practiceDays} day{practiceDays === 1 ? "" : "s"} · {Math.round(totalMinutes)} min in {WEEKS} weeks</span>
+      </div>
+      <div class="overflow-x-auto">
+        <div class="inline-grid gap-[2px]" style={`grid-template-columns: auto repeat(${WEEKS}, 11px); grid-template-rows: auto repeat(7, 11px);`} role="img" aria-label={`Practice calendar: ${practiceDays} practice days in the last ${WEEKS} weeks`}>
+          <span></span>
+          {months.map((m) => <span class="h-4 overflow-visible whitespace-nowrap text-[10px] leading-4 text-muted">{m ?? ''}</span>)}
+          {dayNames.map((dn, row) => (
+            <>
+              <span class="pr-1 text-[10px] leading-3 text-muted">{dn}</span>
+              {cal.map((col) => {
+                const c = col[row];
+                const tip = c.future ? '' : `${c.day}: ${c.sessions ? `${Math.round(c.minutes)} min, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${c.dailyDone ? ', daily ✓' : ''}${c.challengeDone ? ', challenge ✓' : ''}` : 'no practice'}`;
+                return (
+                  <span
+                    class={`block h-[11px] w-[11px] rounded-[3px] ${c.future ? 'opacity-0' : ''} ${c.dailyDone ? 'ring-1 ring-fg/40' : ''}`}
+                    style={`background:${calBg[c.level]}`}
+                    title={tip}
+                  ></span>
+                );
+              })}
+            </>
+          ))}
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
+        Less {calBg.map((bg) => <span class="inline-block h-3 w-3 rounded-[3px]" style={`background:${bg}`}></span>)} More
+        <span class="ml-2 inline-flex items-center gap-1"><span class="inline-block h-3 w-3 rounded-[3px] bg-surface-2 ring-1 ring-fg/40"></span> daily done</span>
+      </div>
+    </section>
+
+    <section class="card space-y-3" aria-labelledby="cmp-h">
+      <div>
+        <h2 id="cmp-h" class="font-semibold">Drill voice vs everyday voice</h2>
+        <p class="text-xs text-muted">Last 30 days. Everyday = real-life clips tagged “everyday”.</p>
+      </div>
+      {compare.everyday.n === 0 ? (
+        <p class="text-sm text-muted">Record a <a href="/everyday" class="text-accent underline">real-life clip</a> after a conversation to compare your everyday voice with your drill voice.</p>
+      ) : null}
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-xs text-muted">
+            <th class="py-1 font-semibold">Metric</th>
+            <th class="py-1 text-right font-semibold">Drill <span class="font-normal">({compare.drill.n})</span></th>
+            <th class="py-1 text-right font-semibold">Everyday <span class="font-normal">({compare.everyday.n})</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {cmpRows.map((r) => {
+            const a = compare.drill[r.key];
+            const b = compare.everyday[r.key];
+            const gap = a != null && b != null && r.better ? (r.better === 'up' ? b >= a : b <= a) : null;
+            return (
+              <tr class="border-t border-line">
+                <td class="py-2">{r.label}</td>
+                <td class="py-2 text-right tabular-nums">{f(a, r.d)}</td>
+                <td class={`py-2 text-right tabular-nums ${gap === true ? 'text-good' : gap === false ? 'text-warn' : ''}`}>
+                  {f(b, r.d)}{gap === false ? ' ↓' : gap === true ? ' ✓' : ''}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p class="text-xs text-muted">✓ everyday matches or beats your drills · ↓ the drill gains haven’t carried over yet.</p>
+    </section>
+  </div>
+</Layout>

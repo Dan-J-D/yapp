@@ -1,0 +1,34 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import DrillRunner from '../../components/drills/DrillRunner.svelte';
+import { DRILLS, STEP_DRILL_STEPS, STEP_HOME, STEP_TASKS, type DrillId } from '../../lib/drill-plan';
+import { getLevel } from '../../lib/server/store';
+
+const { id } = Astro.params;
+const ids: DrillId[] = ['stress', 'match', 'emotion', 'negative', 'question', 'step', 'free'];
+if (!ids.includes(id as DrillId)) return Astro.redirect('/drills');
+const drill = id as DrillId;
+
+let step: number | undefined;
+if (drill === 'step') {
+  const current = getLevel('tonality').level;
+  const q = Number(Astro.url.searchParams.get('step'));
+  step = (STEP_DRILL_STEPS as readonly number[]).includes(q) ? q : current;
+  // Steps 1/3/4/8/9/10 are practised by their own drill or page.
+  if (!(STEP_DRILL_STEPS as readonly number[]).includes(step)) return Astro.redirect(STEP_HOME[step] ?? '/drills');
+}
+const info = DRILLS.find((d) => d.id === drill)!;
+const title = drill === 'step' && step ? STEP_TASKS[step].title : info.title;
+---
+<Layout title={title}>
+  <a href="/drills" class="text-sm text-muted">← Drills</a>
+  <h1 class="mb-4 mt-1 text-2xl font-bold">{title}</h1>
+  {drill === 'step' && (
+    <nav class="mb-4 flex flex-wrap gap-2 text-sm" aria-label="Step tasks">
+      {STEP_DRILL_STEPS.map((s) => (
+        <a href={`/drills/step?step=${s}`} class={`chip px-3 py-1 text-sm ${s === step ? 'border-accent text-accent font-semibold' : ''}`}>Step {s}</a>
+      ))}
+    </nav>
+  )}
+  <DrillRunner client:only="svelte" drill={drill} step={step} />
+</Layout>

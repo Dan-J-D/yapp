@@ -1,0 +1,8 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Calibrate from '../components/drills/Calibrate.svelte';
+---
+<Layout title="Calibrate">
+  <h1 class="mb-4 text-2xl font-bold">Baseline calibration</h1>
+  <Calibrate client:only="svelte" />
+</Layout>

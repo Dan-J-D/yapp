@@ -1,0 +1,93 @@
+---
+import { desc, eq, inArray } from 'drizzle-orm';
+import Layout from '../layouts/Layout.astro';
+import EverydayLog from '../components/everyday/EverydayLog.svelte';
+import ChallengeRecorder from '../components/everyday/ChallengeRecorder.svelte';
+import RoleplayPartner from '../components/everyday/RoleplayPartner.svelte';
+import { db, schema } from '../db';
+import { localDay } from '../lib/server/store';
+import { fmt, fmtDate } from '../lib/client';
+import { kindLabel, sessionLabel } from '../lib/dashboard';
+
+const openChallenge = Astro.url.searchParams.get('challenge') === '1';
+const recent = db
+  .select()
+  .from(schema.sessions)
+  .where(inArray(schema.sessions.kind, ['everyday', 'challenge', 'roleplay']))
+  .orderBy(desc(schema.sessions.startedAt))
+  .limit(8)
+  .all();
+const today = db.select().from(schema.streaks).where(eq(schema.streaks.day, localDay())).get();
+---
+<Layout title="Everyday">
+  <h1 class="mb-1 text-2xl font-bold">Everyday transfer</h1>
+  <p class="mb-4 text-muted">Drills only count if they show up in real conversations. Log real-life clips, do today’s micro-challenge, and practise talking with a partner.</p>
+
+  <nav class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Sections">
+    <a href="#challenge" class="chip shrink-0 px-4 py-2 text-sm">Micro-challenge</a>
+    <a href="#log" class="chip shrink-0 px-4 py-2 text-sm">Real-life log</a>
+    <a href="#roleplay" class="chip shrink-0 px-4 py-2 text-sm">Role-play</a>
+  </nav>
+
+  <div class="space-y-4">
+    <section id="challenge" class={`card scroll-mt-20 space-y-3 ${openChallenge ? 'border-accent' : ''}`} aria-labelledby="challenge-h">
+          <div class="flex items-center justify-between gap-2">
+            <h2 id="challenge-h" class="text-lg font-bold">Today’s micro-challenge</h2>
+            {today?.challengeDone && <span class="chip border-good text-good">✓ done today</span>}
+          </div>
+          {openChallenge ? (
+            <ChallengeRecorder client:only="svelte" autoFocus />
+          ) : (
+            <details class="group">
+              <summary class="btn w-full cursor-pointer list-none">Show today’s challenge</summary>
+              <div class="mt-3"><ChallengeRecorder client:only="svelte" /></div>
+            </details>
+          )}
+        </section>
+    <section id="log" class="card scroll-mt-20 space-y-3" aria-labelledby="log-h">
+          <h2 id="log-h" class="text-lg font-bold">Real-life log</h2>
+          <EverydayLog client:only="svelte" />
+        </section>
+    <section id="roleplay" class="card scroll-mt-20 space-y-3" aria-labelledby="rp-h">
+          <div>
+            <h2 id="rp-h" class="text-lg font-bold">Role-play partner</h2>
+            <p class="text-sm text-muted">Tonality step 9 · simulated conversation. An AI partner talks, you answer out loud.</p>
+          </div>
+          <RoleplayPartner client:only="svelte" />
+        </section>
+
+    <section class="space-y-2" aria-labelledby="recent-h">
+      <div class="flex items-baseline justify-between">
+        <h2 id="recent-h" class="text-lg font-bold">Recent</h2>
+        <a href="/history?filter=everyday" class="text-sm text-accent">All →</a>
+      </div>
+      {recent.length === 0 ? (
+        <p class="card text-sm text-muted">Nothing yet — your recaps, challenges and conversations will show up here.</p>
+      ) : (
+        <ul class="space-y-2">
+          {recent.map((s) => {
+            const m = (s.summary ?? {}) as Record<string, number | null>;
+            return (
+              <li>
+                <a href={`/session/${s.id}`} class="card flex items-center gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-semibold">{sessionLabel(s)}</div>
+                    <div class="text-xs text-muted">{kindLabel(s.kind)} · {fmtDate(s.startedAt)}</div>
+                  </div>
+                  {s.summary ? (
+                    <div class="shrink-0 text-right text-xs tabular-nums">
+                      <div>{fmt(m.stSd, 2)} <span class="text-muted">ST SD</span></div>
+                      <div>{fmt(m.fillersPerMin)} <span class="text-muted">fillers/min</span></div>
+                    </div>
+                  ) : (
+                    <span class="shrink-0 text-xs text-muted">{s.endedAt ? 'analysing…' : 'unfinished'}</span>
+                  )}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  </div>
+</Layout>

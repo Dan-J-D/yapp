@@ -1,0 +1,98 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PrefsForm from '../components/settings/PrefsForm.svelte';
+import ThemePicker from '../components/settings/ThemePicker.svelte';
+import Devices from '../components/settings/Devices.svelte';
+import Notifications from '../components/settings/Notifications.svelte';
+import DataPanel from '../components/settings/DataPanel.svelte';
+import { caFingerprint } from '../lib/server/ca';
+import { getBaseline, getPrefs } from '../lib/server/store';
+import { DEFAULT_BANDS } from '../lib/scoring';
+
+const prefs = getPrefs();
+const baseline = getBaseline();
+const fingerprint = caFingerprint();
+const bands = baseline?.bands ?? DEFAULT_BANDS;
+const f = (v: number | null | undefined, d = 1) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d));
+const baseRows = baseline
+  ? [
+      ['Median pitch', `${f(baseline.medianHz, 0)} Hz`],
+      ['Pitch tracker range', `${f(baseline.f0Floor, 0)}–${f(baseline.f0Ceiling, 0)} Hz`],
+      ['Pitch variation', `${f(baseline.stSd, 2)} ST SD`],
+      ['Free talk / reading', `${f(baseline.stSdFree, 2)} / ${f(baseline.stSdReading, 2)} ST SD`],
+      ['Range p5–p95', `${f(baseline.rangeSt)} ST`],
+      ['Speech rate', `${f(baseline.wpm, 0)} WPM`],
+      ['Fillers', `${f(baseline.fillersPerMin)} / min`],
+      ['Mean length of run', `${f(baseline.mlr)} syll`],
+    ]
+  : [];
+const sections = [
+  ['prefs', 'Preferences'],
+  ['appearance', 'Appearance'],
+  ['baseline', 'Baseline'],
+  ['devices', 'Devices'],
+  ['notifications', 'Notifications'],
+  ['data', 'Data'],
+];
+---
+<Layout title="Settings">
+  <h1 class="mb-3 text-2xl font-bold">Settings</h1>
+  <nav class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Settings sections">
+    {sections.map(([id, label]) => <a href={`#${id}`} class="chip shrink-0 px-3 py-1.5 text-sm">{label}</a>)}
+  </nav>
+
+  <div class="space-y-4">
+    <section id="prefs" class="card scroll-mt-20" aria-labelledby="prefs-h">
+      <h2 id="prefs-h" class="mb-4 text-lg font-bold">Preferences</h2>
+      <PrefsForm client:load initial={prefs} />
+    </section>
+
+    <section id="appearance" class="card scroll-mt-20" aria-labelledby="app-h">
+      <h2 id="app-h" class="mb-3 text-lg font-bold">Appearance</h2>
+      <ThemePicker client:load />
+    </section>
+
+    <section id="baseline" class="card scroll-mt-20 space-y-3" aria-labelledby="base-h">
+      <h2 id="base-h" class="text-lg font-bold">Baseline</h2>
+      {baseline ? (
+        <>
+          <p class="text-sm text-muted">
+            Calibrated {new Date(baseline.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}. Scores, meters and the L1 filler goal are measured against it. After your first week it’s refined automatically from everything you recorded.
+          </p>
+          <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm tabular-nums">
+            {baseRows.map(([k, v]) => (
+              <>
+                <dt class="text-muted">{k}</dt>
+                <dd class="text-right">{v}</dd>
+              </>
+            ))}
+            <dt class="text-muted">Bands (monotone / low / typical)</dt>
+            <dd class="text-right">&lt;{bands.monotone.toFixed(1)} / &lt;{bands.low.toFixed(1)} / ≤{bands.typical.toFixed(1)} ST</dd>
+          </dl>
+        </>
+      ) : (
+        <p class="text-sm text-muted">No baseline yet. Calibrate once so meters and scores fit your own voice.</p>
+      )}
+      <a href="/calibrate" class="btn">{baseline ? 'Recalibrate' : 'Calibrate now'}</a>
+    </section>
+
+    <section id="devices" class="card scroll-mt-20" aria-labelledby="dev-h">
+      <h2 id="dev-h" class="mb-3 text-lg font-bold">Devices</h2>
+      <Devices client:load fingerprint={fingerprint} />
+    </section>
+
+    <section id="notifications" class="card scroll-mt-20" aria-labelledby="notif-h">
+      <h2 id="notif-h" class="mb-3 text-lg font-bold">Notifications</h2>
+      <Notifications client:only="svelte" hour={prefs.challengeHour} />
+    </section>
+
+    <section id="data" class="card scroll-mt-20" aria-labelledby="data-h">
+      <h2 id="data-h" class="mb-3 text-lg font-bold">Data</h2>
+      <DataPanel client:load />
+    </section>
+
+    <form method="post" action="/api/logout" class="pt-2">
+      <button class="btn w-full">Log out</button>
+    </form>
+  </div>
+</Layout>

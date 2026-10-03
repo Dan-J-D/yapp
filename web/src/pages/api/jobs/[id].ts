@@ -6,7 +6,10 @@ import { bus, startQueue, type JobEvent } from '../../../lib/server/queue';
 
 export const GET: APIRoute = ({ params, request }) => {
   startQueue();
-  const id = params.id!;
+  let id = params.id!;
+  try {
+    id = decodeURIComponent(id); // clients send "s%3A<sessionId>"
+  } catch {}
   const sessionId = id.startsWith('s:') ? id.slice(2) : null;
   const match = (e: JobEvent) => (sessionId ? e.sessionId === sessionId : e.jobId === id);
 

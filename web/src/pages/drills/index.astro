@@ -1,0 +1,74 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { DRILLS, STEP_HOME } from '../../lib/drill-plan';
+import { TONALITY_STEPS, MASTERY_WINDOW } from '../../lib/progression';
+import { appState } from '../../lib/server/stats';
+
+const s = appState();
+const step = s.tonality.step;
+const m = s.tonality.mastery;
+const pct = Math.round(m.rate * 100);
+const fbText = { continuous: 'live feedback', summary: 'summary feedback only', none: 'no feedback (confirmation reps)' }[s.tonality.feedback];
+const currentHref = STEP_HOME[step] ?? '/drills';
+---
+<Layout title="Drills">
+  <h1 class="mb-1 text-2xl font-bold">Tonality drills</h1>
+  <p class="mb-4 text-muted">Advance a step when 80% of your last {MASTERY_WINDOW} reps there are on target.</p>
+
+  <a href={currentHref} class="card mb-4 block space-y-3 border-accent">
+    <div class="flex items-center gap-3">
+      <div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-accent text-xl font-black text-accent-fg">{step}</div>
+      <div class="min-w-0 flex-1">
+        <div class="label">Current step</div>
+        <div class="font-semibold">{s.tonality.name}</div>
+        <div class="text-xs text-muted">{fbText}</div>
+      </div>
+      <span class="btn btn-primary shrink-0">Practise</span>
+    </div>
+    <div>
+      <div class="mb-1 flex justify-between text-xs text-muted">
+        <span>Mastery {pct}%</span>
+        <span>{Math.min(m.count, MASTERY_WINDOW)}/{MASTERY_WINDOW} reps</span>
+      </div>
+      <div class="relative h-2.5 overflow-hidden rounded-full bg-surface-2">
+        <div class={`h-full rounded-full ${pct >= 80 ? 'bg-good' : 'bg-accent'}`} style={`width:${pct}%`}></div>
+        <div class="absolute inset-y-0 w-0.5 bg-fg/40" style="left:80%" title="80% mastery"></div>
+      </div>
+    </div>
+  </a>
+
+  <div class="space-y-3">
+    {DRILLS.map((d) => {
+      const current = d.steps.includes(step);
+      const href = d.id === 'step' && [2, 5, 6, 7].includes(step) ? `/drills/step?step=${step}` : d.href;
+      return (
+        <a href={href} class={`card flex items-center gap-4 ${current ? 'border-accent' : ''}`}>
+          <div class={`grid h-11 min-w-11 shrink-0 place-items-center rounded-xl px-2 text-sm font-black ${current ? 'bg-accent text-accent-fg' : 'bg-surface-2'}`}>
+            {d.steps.length ? (d.id === 'step' ? '2·5·6·7' : d.steps.join('·')) : '+'}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold">{d.title} {current && <span class="chip ml-1 border-accent text-accent">now</span>}</div>
+            <div class="text-sm text-muted">{d.desc}</div>
+          </div>
+        </a>
+      );
+    })}
+  </div>
+
+  <h2 class="mb-2 mt-8 text-lg font-bold">Sessions</h2>
+  <div class="grid gap-3 sm:grid-cols-3">
+    <a href="/daily" class="card"><div class="font-semibold">Daily session</div><div class="text-sm text-muted">15–20 min, everything in one flow.</div></a>
+    <a href="/transfer" class={`card ${s.transferDue ? 'border-warn' : ''}`}><div class="font-semibold">Transfer test {s.transferDue && <span class="chip ml-1 border-warn text-warn">due</span>}</div><div class="text-sm text-muted">Weekly 2-min monologue, no feedback.</div></a>
+    <a href="/calibrate" class={`card ${!s.baseline ? 'border-warn' : ''}`}><div class="font-semibold">Calibrate {!s.baseline && <span class="chip ml-1 border-warn text-warn">needed</span>}</div><div class="text-sm text-muted">Baseline: 60 s talk + reading.</div></a>
+  </div>
+
+  <h2 class="mb-2 mt-8 text-lg font-bold">Progression</h2>
+  <ol class="card space-y-1.5 text-sm">
+    {TONALITY_STEPS.map((t) => (
+      <li class={`flex items-center gap-3 ${t.step === step ? 'font-semibold' : t.step < step ? 'text-muted' : ''}`}>
+        <span class={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs ${t.step < step ? 'bg-good text-white' : t.step === step ? 'bg-accent text-accent-fg' : 'border border-line'}`}>{t.step < step ? '✓' : t.step}</span>
+        <a href={STEP_HOME[t.step]} class="flex-1 py-1">{t.name}</a>
+      </li>
+    ))}
+  </ol>
+</Layout>

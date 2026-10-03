@@ -1,0 +1,18 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import YapRunner from '../../components/YapRunner.svelte';
+import { YAP_MODES } from '../../lib/yap-modes';
+import { YAP_LEVELS } from '../../lib/progression';
+import { getLevel } from '../../lib/server/store';
+const { level } = Astro.params;
+const lv = YAP_LEVELS.find((l) => l.key === level);
+const extra = YAP_MODES.find((m) => m.mode === level);
+if (!lv && !extra) return Astro.redirect('/yap');
+const unlocked = lv ? lv.level <= getLevel('yap').level : true;
+const title = lv ? `${lv.key} · ${lv.name}` : extra!.title;
+---
+<Layout title={title}>
+  <a href="/yap" class="text-sm text-muted">← Yap</a>
+  <h1 class="mb-4 mt-1 text-2xl font-bold">{title}</h1>
+  <YapRunner client:only="svelte" mode={level!} unlocked={unlocked} />
+</Layout>

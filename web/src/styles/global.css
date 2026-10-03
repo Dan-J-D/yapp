@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* Design tokens. Light by default, dark via OS preference or data-theme. */
+:root {
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #efede8;
+  --fg: #1d1c1a;
+  --muted: #6b6862;
+  --line: #e3e0da;
+  --accent: #2f6f5e;
+  --accent-fg: #ffffff;
+  --accent-soft: #dcebe5;
+  --good: #2e8b57;
+  --warn: #c98a12;
+  --bad: #c2453a;
+  --model: #7a5cc4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413;
+    --surface: #1d1c1a;
+    --surface-2: #262522;
+    --fg: #ecebe8;
+    --muted: #a19e97;
+    --line: #34322f;
+    --accent: #5fb39b;
+    --accent-fg: #0e1a16;
+    --accent-soft: #1f3530;
+    --good: #4cc07f;
+    --warn: #e2a634;
+    --bad: #e46a5e;
+    --model: #a98cf0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413;
+  --surface: #1d1c1a;
+  --surface-2: #262522;
+  --fg: #ecebe8;
+  --muted: #a19e97;
+  --line: #34322f;
+  --accent: #5fb39b;
+  --accent-fg: #0e1a16;
+  --accent-soft: #1f3530;
+  --good: #4cc07f;
+  --warn: #e2a634;
+  --bad: #e46a5e;
+  --model: #a98cf0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-model: var(--model);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@layer components {
+  .card { @apply rounded-2xl border border-line bg-surface p-4; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 font-semibold text-fg transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
+  .btn-primary { @apply border-transparent bg-accent text-accent-fg; }
+  .btn-danger { @apply border-transparent bg-bad text-white; }
+  .btn-ghost { @apply border-transparent bg-transparent; }
+  .btn-lg { @apply px-6 py-4 text-lg rounded-2xl; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-0.5 text-xs text-muted; }
+  .label { @apply text-xs font-semibold uppercase tracking-wide text-muted; }
+  .input { @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-fg; }
+  .stat { @apply text-2xl font-bold tabular-nums; }
+}

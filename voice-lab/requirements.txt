@@ -1,0 +1,13 @@
+# Runtime
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+faster-whisper==1.2.1
+ctranslate2==4.8.2   # CUDA 12 + cuDNN 9 build
+praat-parselmouth==0.4.7
+numpy==2.5.3
+
+# Tests
+pytest==9.1.1
+httpx==0.28.1
+httpx2==2.13.1   # starlette's TestClient prefers httpx2 (avoids a deprecation warning)

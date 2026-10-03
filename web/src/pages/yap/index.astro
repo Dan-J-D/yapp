@@ -1,0 +1,42 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { YAP_LEVELS, PASSES_TO_UNLOCK } from '../../lib/progression';
+import { YAP_MODES } from '../../lib/yap-modes';
+import { getLevel } from '../../lib/server/store';
+const lvl = getLevel('yap');
+const desc: Record<number, string> = {
+  1: '2 min on a familiar topic. No dead air over 3 s, fewer fillers than your baseline.',
+  2: 'Talk 2 min, retell in 1.5 min (faster), then bridge a pivot with no gap.',
+  3: '30 s PREP plan → 5 min with ≥3 pivots → 90 s compressed summary.',
+  4: '10+ minutes with curveball words every 60–90 s. Recover in under 3 s.',
+};
+---
+<Layout title="Yap">
+  <h1 class="mb-1 text-2xl font-bold">Yap stamina</h1>
+  <p class="mb-4 text-muted">Pass a level {PASSES_TO_UNLOCK}× to unlock the next. The variation meter stays on the whole time.</p>
+  <div class="space-y-3">
+    {YAP_LEVELS.map((l) => {
+      const locked = l.level > lvl.level;
+      const current = l.level === lvl.level;
+      return (
+        <a href={`/yap/${l.key}`} class={`card flex items-center gap-4 ${locked ? 'opacity-60' : ''} ${current ? 'border-accent' : ''}`}>
+          <div class={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-lg font-black ${current ? 'bg-accent text-accent-fg' : 'bg-surface-2'}`}>{l.key}</div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold">{l.name} {locked && <span class="chip ml-1">locked</span>}</div>
+            <div class="text-sm text-muted">{desc[l.level]}</div>
+            {current && <div class="mt-1 text-xs text-accent">{lvl.passes}/{PASSES_TO_UNLOCK} passes</div>}
+          </div>
+        </a>
+      );
+    })}
+  </div>
+  <h2 class="mb-2 mt-8 text-lg font-bold">Extra modes</h2>
+  <div class="grid gap-3 sm:grid-cols-2">
+    {YAP_MODES.map((m) => (
+      <a href={`/yap/${m.mode}`} class="card">
+        <div class="font-semibold">{m.title}</div>
+        <div class="text-sm text-muted">{m.desc}</div>
+      </a>
+    ))}
+  </div>
+</Layout>

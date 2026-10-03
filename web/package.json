@@ -1,0 +1,38 @@
+{
+  "name": "yapp-web",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "start": "node server/start.mjs",
+    "check": "astro check",
+    "test": "vitest run",
+    "hash-password": "node scripts/hash-password.mjs",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.6",
+    "@astrojs/svelte": "^9.0.1",
+    "@node-rs/argon2": "^2.2.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.3.5",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.3",
+    "pitchy": "^4.1.0",
+    "svelte": "^5.57.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "uplot": "^1.6.32",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.4",
+    "@types/web-push": "^3.6.4",
+    "drizzle-kit": "^0.31.11",
+    "vitest": "^5.0.3"
+  }
+}

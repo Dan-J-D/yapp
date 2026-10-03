@@ -1,0 +1,33 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { isAuthed } from '../lib/server/auth';
+const next = Astro.url.searchParams.get('next') ?? '/';
+const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+if (isAuthed(Astro.cookies)) return Astro.redirect(safeNext);
+---
+<Layout title="Log in" nav={false}>
+  <div class="mx-auto mt-[12vh] max-w-sm">
+    <div class="mb-6 flex items-center gap-3">
+      <img src="/favicon.svg" alt="" class="h-12 w-12" />
+      <div><h1 class="text-2xl font-bold">Yapp</h1><p class="text-sm text-muted">Voice tonality & yapping stamina</p></div>
+    </div>
+    <form id="f" class="card space-y-3">
+      <label class="block"><span class="label">Password</span>
+        <input class="input mt-1" type="password" name="password" autocomplete="current-password" required autofocus />
+      </label>
+      <p id="err" class="hidden text-sm text-bad"></p>
+      <button class="btn btn-primary w-full">Log in</button>
+    </form>
+  </div>
+  <script is:inline define:vars={{ safeNext }}>
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      const r = await fetch('/api/login', { method: 'POST', body: new FormData(e.target) });
+      if (r.ok) return location.replace(safeNext);
+      const j = await r.json().catch(() => ({}));
+      err.textContent = j.error || 'Login failed';
+      err.classList.remove('hidden');
+    });
+  </script>
+</Layout>

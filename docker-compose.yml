@@ -14,6 +14,10 @@ services:
       - path: .env
         required: false
     environment:
+      APP_PASSWORD_HASH: ${APP_PASSWORD_HASH:-}
+      HOSTNAMES: ${HOSTNAMES:-}
+      LAN_IPS: ${LAN_IPS:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:yapp@localhost}
       DATA_DIR: /data
       CERT_DIR: /data/certs
       PORT: ${HTTPS_PORT:-8443}

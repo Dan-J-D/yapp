@@ -89,6 +89,6 @@ export function startHttpServer({ port, httpsPort, certDir }) {
       return send(500, 'text/plain', String(e));
     }
   });
-  server.listen(port, process.env.HOST ?? '0.0.0.0', () => console.log(`[http] cert landing on http://0.0.0.0:${port}`));
+  server.listen(port, process.env.HOST ?? '0.0.0.0', () => console.log(`[http] cert landing on http://${process.env.HOST ?? "0.0.0.0"}:${port}`));
   return server;
 }

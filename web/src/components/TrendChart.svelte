@@ -26,7 +26,11 @@
       cursor: { drag: { x: false, y: false } },
       legend: { show: series.length > 1 },
       scales: {
-        x: { time: true },
+        x: {
+          time: true,
+          // a lone point would make uPlot span years; pad sparse series to ±3 days
+          range: (_u: uPlot, lo: number, hi: number): uPlot.Range.MinMax => (hi - lo < 86_400 ? [lo - 3 * 86_400, hi + 3 * 86_400] : [lo, hi]),
+        },
         ...(yRange ? { y: { range: (_u: uPlot, min: number, max: number): uPlot.Range.MinMax => [Math.min(min ?? yRange[0], yRange[0]), Math.max(max ?? yRange[1], yRange[1])] } } : {}),
       },
       axes: [
@@ -65,6 +69,10 @@
       },
     };
     const plot = new uPlot(opts, [x.map((t) => t / 1000), ...series.map((s) => s.data)] as uPlot.AlignedData, el);
+    const xs = x.map((t) => t / 1000);
+    const lo = Math.min(...xs);
+    const hi = Math.max(...xs);
+    if (hi - lo < 86_400) plot.setScale('x', { min: lo - 3 * 86_400, max: hi + 3 * 86_400 });
     const ro = new ResizeObserver(() => plot.setSize({ width: el.clientWidth, height }));
     ro.observe(el);
     return () => {

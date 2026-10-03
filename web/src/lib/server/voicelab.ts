@@ -1,4 +1,5 @@
 import { config, toVoiceLabPath } from './config';
+import { unloadOllama } from './ollama';
 
 export interface VLWord {
   w: string;
@@ -68,6 +69,8 @@ export async function analyzeAudio(
     try {
       detail = ((await r.json()) as { detail?: string }).detail ?? detail;
     } catch {}
+    // GPU shared with Ollama: if Whisper ran out of VRAM, evict the LLM so the retry fits.
+    if (/out of memory/i.test(detail)) await unloadOllama();
     const err = new Error(`voice-lab ${r.status}: ${detail}`);
     (err as Error & { retryable?: boolean }).retryable = r.status >= 500;
     throw err;

@@ -26,6 +26,22 @@ async function chat(
   return (j.message?.content ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 }
 
+/** Evict loaded models from VRAM (e.g. so Whisper has room). Best-effort. */
+export async function unloadOllama(): Promise<void> {
+  try {
+    const r = await fetch(`${config.ollamaUrl}/api/ps`, { signal: AbortSignal.timeout(3000) });
+    const { models = [] } = (await r.json()) as { models?: { name: string }[] };
+    for (const m of models) {
+      await fetch(`${config.ollamaUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ model: m.name, keep_alive: 0 }),
+        signal: AbortSignal.timeout(10_000),
+      });
+    }
+  } catch {}
+}
+
 export async function ollamaHealth(): Promise<boolean> {
   try {
     const r = await fetch(`${config.ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(3000) });

@@ -50,9 +50,9 @@ export async function sendPushAll(payload: { title: string; body: string; url: s
       await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 6 * 3600 });
       sent++;
     } catch (e) {
-      const code = (e as { statusCode?: number }).statusCode;
+      const { statusCode: code, body } = e as { statusCode?: number; body?: string };
       if (code === 404 || code === 410) db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.endpoint, s.endpoint)).run();
-      else console.warn('[push] send failed', code, (e as Error).message);
+      else console.warn('[push] send failed', code, (e as Error).message, body ?? '');
     }
   }
   return { sent, total: subs.length };

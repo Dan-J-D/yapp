@@ -1,5 +1,5 @@
 // Container entry: issue certs, start the HTTP landing server, then the Astro app over HTTPS.
-// HOST may list several addresses (e.g. "10.0.0.1,127.0.0.1"); we listen on each of them.
+// HOST may list several addresses (e.g. "10.8.0.1,127.0.0.1"); we listen on each of them.
 import fs from 'node:fs';
 import https from 'node:https';
 import { ensureCerts } from '../scripts/certs.mjs';

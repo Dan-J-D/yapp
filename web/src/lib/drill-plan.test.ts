@@ -11,8 +11,8 @@ import {
   buildStepItems,
   buildStressItems,
   dailyPlan,
+  yapBlockSeconds,
   drillFeedback,
-  freeAnswers,
   parseMarked,
   pickMatchPhrases,
   repMeta,
@@ -121,19 +121,21 @@ describe('feedback fading', () => {
 });
 
 describe('daily plan', () => {
-  it('fits 15–20 minutes with a 4–6 min free-speech block', () => {
-    for (const m of [10, 15, 18, 20, 30]) {
-      const p = dailyPlan(m);
-      expect(p.map((b) => b.id)).toEqual(['warmup', 'stress', 'match', 'free', 'review']);
-      const free = p.find((b) => b.id === 'free')!;
-      expect(free.seconds).toBeGreaterThanOrEqual(240);
-      expect(free.seconds).toBeLessThanOrEqual(360);
+  it('totals 17–19 minutes with a yap block and no free block', () => {
+    for (const yapBlock of ['retell', 'conversation'] as const) {
+      const p = dailyPlan({ yapBlock });
       const total = p.reduce((s, b) => s + b.seconds, 0) / 60;
-      expect(total).toBeGreaterThanOrEqual(15);
-      expect(total).toBeLessThanOrEqual(20);
+      expect(total).toBeGreaterThanOrEqual(17);
+      expect(total).toBeLessThanOrEqual(19);
+      expect(p.map((b) => b.id)).toEqual(['warmup', 'stress', 'match', 'yap', 'review']);
+      expect(p.some((b) => (b.id as string) === 'free')).toBe(false);
+      expect(p.find((b) => b.id === 'yap')!.yap).toBe(yapBlock);
     }
-    expect(freeAnswers(240)).toBe(3);
-    expect(freeAnswers(360)).toBe(4);
+  });
+  it('retell block = 30 s plan + tellings + gaps (~6.5 min by default)', () => {
+    expect(yapBlockSeconds('retell')).toBe(390);
+    expect(yapBlockSeconds('retell', [0.5, 0.5, 0.5])).toBe(30 + 3 * 60);
+    expect(dailyPlan({ pick: { label: 'Revisit day +1', prompt: 'A meal that went wrong' } })[3].desc).toContain('Revisit day +1');
   });
 });
 

@@ -294,34 +294,51 @@ export function usableRange(values: readonly (number | null)[]): { lo: number; h
 
 // ------------------------------------------------------------------ daily plan
 
-export type DailyBlockId = 'warmup' | 'stress' | 'match' | 'free' | 'review';
+export type DailyBlockId = 'warmup' | 'stress' | 'match' | 'yap' | 'review';
+export type YapBlockType = 'retell' | 'conversation';
 export interface DailyBlock {
   id: DailyBlockId;
   title: string;
   seconds: number;
   desc: string;
-  /** free: number of 60–90 s answers */
-  answers?: number;
+  /** the benefit — why this block is in the session */
+  why: string;
+  /** yap: retell (plan + 3 tellings) or a 5-minute conversation */
+  yap?: YapBlockType;
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+/** Retell overhead: 30 s silent plan + ~30 s of intro / feedback around each telling. */
+export const RETELL_PLAN_S = 30;
+const RETELL_GAP_S = 30;
+export const CONVERSATION_S = 300;
+export const DEFAULT_RETELL_MINUTES: [number, number, number] = [2, 1.5, 1];
 
-/** Number of 60–90 s free-speech answers that fit in a time budget. */
-export const freeAnswers = (seconds: number) => clamp(Math.floor(seconds / 80), 2, 4);
+/** Length of the yap block in seconds. */
+export function yapBlockSeconds(type: YapBlockType, retellMinutes: readonly number[] = DEFAULT_RETELL_MINUTES) {
+  if (type === 'conversation') return CONVERSATION_S + 3 * RETELL_GAP_S;
+  return RETELL_PLAN_S + retellMinutes.reduce((s, m) => s + Math.round(m * 60) + RETELL_GAP_S, 0);
+}
 
 /**
- * The ~15–20 min daily session: warm-up 2 → stress 4 → match 4 → free speech 4–6 → review 1.
- * The free-speech block absorbs the user's preferred total (prefs.dailyMinutes).
+ * The ~18 min daily base: warm-up 2 → stress 4 → match 4 → yap block ~6.5 → review 1.
+ * The yap block is a shrinking retell (plan, then 2:00 / 1:30 / 1:00 of the same topic) whose
+ * tellings count as step-8 free-speech reps — or, at Y3+ with nothing due, a 5-minute conversation.
  */
-export function dailyPlan(minutes = 18): DailyBlock[] {
-  const fixed = 2 + 4 + 4 + 1;
-  const freeS = clamp(Math.round(minutes) - fixed, 4, 6) * 60;
+export function dailyPlan(o: { yapBlock?: YapBlockType; retellMinutes?: readonly number[]; pick?: { label: string; prompt?: string | null } | null } = {}): DailyBlock[] {
+  const type = o.yapBlock ?? 'retell';
+  const mins = o.retellMinutes ?? DEFAULT_RETELL_MINUTES;
+  const topic = o.pick ? `${o.pick.label}${o.pick.prompt ? `: “${o.pick.prompt}”` : ''}. ` : '';
+  const fmtM = (m: number) => (m % 1 ? `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}` : `${m}:00`);
+  const yap: DailyBlock =
+    type === 'conversation'
+      ? { id: 'yap', yap: type, title: 'Yap: conversation', seconds: yapBlockSeconds(type), desc: `${topic}5 minutes with the AI partner: it asks about you, switches topic every minute or so, and sometimes shares instead of asking.`, why: DRILL_WHY.conversation }
+      : { id: 'yap', yap: type, title: 'Yap: shrinking retell', seconds: yapBlockSeconds(type, mins), desc: `${topic}30 s silent plan, then tell it 3 times in ${mins.map(fmtM).join(' / ')}. Telling 3 is about tonality — the meter stays on throughout.`, why: DRILL_WHY.retell };
   return [
-    { id: 'warmup', title: 'Warm-up', seconds: 120, desc: 'Straw / lip-trill glides and range sirens.' },
-    { id: 'stress', title: 'Contrastive stress', seconds: 240, desc: '3 sentences × 4 stress positions, 15 reps.' },
-    { id: 'match', title: 'Model & match', seconds: 240, desc: '5 phrases, 3 reps each, with the contour overlay.' },
-    { id: 'free', title: 'Free speech', seconds: freeS, desc: `${freeAnswers(freeS)} answers of 60–90 s with the live variation meter — a short conversation-level task, from day one.`, answers: freeAnswers(freeS) },
-    { id: 'review', title: 'Review', seconds: 60, desc: 'Play back your answers, tag the fillers, compare with your baseline.' },
+    { id: 'warmup', title: 'Warm-up', seconds: 120, desc: 'Straw / lip-trill glides and range sirens.', why: DRILL_WHY.warmup },
+    { id: 'stress', title: 'Contrastive stress', seconds: 240, desc: '3 sentences × 4 stress positions, 15 reps.', why: DRILL_WHY.stress },
+    { id: 'match', title: 'Model & match', seconds: 240, desc: '5 phrases, 3 reps each, with the contour overlay.', why: DRILL_WHY.match },
+    yap,
+    { id: 'review', title: 'Review', seconds: 60, desc: 'Telling 1 → telling 3 side by side, pass checks, tag your fillers.', why: 'Spotting your own fillers on playback is the awareness training that cuts them down — and keeps them down. Seeing telling 3 beat telling 1 shows the retell working.' },
   ];
 }
 
@@ -375,22 +392,38 @@ export interface DrillInfo {
   steps: number[];
   desc: string;
   how: string;
+  /** the benefit — why do this drill at all */
+  why: string;
 }
 
+/** Why each drill is worth doing (shown under its instructions). */
+export const DRILL_WHY: Record<DrillId | 'retell' | 'conversation', string> = {
+  warmup: 'Makes your voice easier to move and shows how much range you actually have to work with. It loosens you up but doesn’t make you more expressive by itself — that’s what the drills after it are for.',
+  step: 'Each step adds one new difficulty. Mastering it before moving on keeps your attention on how you sound instead of being swamped by what to say.',
+  stress: 'Lifting one word above its neighbours is the smallest unit of expressive speech, and it’s how listeners find your point. Lots of reps here make it automatic, so it turns up in full sentences later.',
+  match: 'Copying a lively melody lets you feel pitch shapes you wouldn’t produce on your own. Matching the shape — not the exact notes — is what carries over to new sentences.',
+  free: 'The best-evidenced way to get more variety into real speech: training with a live meter while you’re also thinking about content. That’s exactly when a monotone shows up.',
+  emotion: 'Emotional speech uses far more pitch range than neutral talk. Stretching to the extremes in practice gives your everyday voice more room to move.',
+  negative: 'You can only fix what you can notice. Doing the old flat voice on purpose, right next to the new one, teaches you to feel the difference without a meter.',
+  question: 'Phrase endings are where flat speakers lose the most meaning, and the end-of-phrase slope is what listeners hear most as “monotone”.',
+  retell: 'Telling the same story again in less time is the best-supported fluency drill: you speed up and hesitate less because you’re no longer planning from scratch — and coming back to it tomorrow and next week is what carries over to new topics.',
+  conversation: 'Real conversations ask you to answer at length, ask follow-up questions and switch topics. Practising that with a partner — meter on — is where fluency and tonality meet.',
+};
+
 export const DRILLS: DrillInfo[] = [
-  { id: 'warmup', title: 'Warm-up', href: '/warmup', steps: [1], desc: 'Straw / lip-trill glides and range sirens (2 min).', how: 'Glide and siren through your range with the live pitch trace. Scored on usable range (p5–p95) and smooth glides.' },
-  { id: 'step', title: 'Current step', href: '/drills/step', steps: [2, 5, 6, 7], desc: 'Rising words, marked & unmarked reading, scripted Q&A.', how: 'Practise the task of your current progression step.' },
-  { id: 'stress', title: 'Contrastive stress', href: '/drills/stress', steps: [3], desc: '3 sentences × 4 stress positions, 15 reps.', how: 'Say the sentence so the bold word carries the meaning: higher, a little louder and longer than its neighbours. Everything else stays relaxed.' },
-  { id: 'match', title: 'Model & match', href: '/drills/match', steps: [4], desc: '5 phrases, 3–5 reps each, with contour overlay.', how: 'Listen to the model, then copy its melody — the shape (where it rises and falls, how wide), not the exact voice.' },
-  { id: 'free', title: 'Free speech + meter', href: '/drills/free', steps: [8], desc: '60–90 s answers with the live variation meter.', how: 'Answer each prompt for 60–90 s. The meter shows your rolling 10 s pitch variation; keep it in the green.' },
-  { id: 'emotion', title: 'Emotion range', href: '/drills/emotion', steps: [], desc: 'One line: neutral, then excited, bored, suspicious, warm, urgent.', how: 'Say the line in your neutral voice first; every emotion is compared with it. Bored should go flatter — the rest should open up.' },
-  { id: 'negative', title: 'Negative practice', href: '/drills/negative', steps: [], desc: 'Old flat voice vs new lively voice, same line.', how: 'Deliberately do your old monotone, then the lively version. Feeling the contrast is the point.' },
-  { id: 'question', title: 'Statement vs question', href: '/drills/question', steps: [], desc: 'Same words — the ending decides.', how: 'Say each line as a statement (falling end) and as a genuine question (rising end).' },
+  { id: 'warmup', title: 'Warm-up', href: '/warmup', steps: [1], desc: 'Straw / lip-trill glides and range sirens (2 min).', how: 'Glide and siren through your range with the live pitch trace. Scored on usable range (p5–p95) and smooth glides.', why: DRILL_WHY.warmup },
+  { id: 'step', title: 'Current step', href: '/drills/step', steps: [2, 5, 6, 7], desc: 'Rising words, marked & unmarked reading, scripted Q&A.', how: 'Practise the task of your current progression step.', why: DRILL_WHY.step },
+  { id: 'stress', title: 'Contrastive stress', href: '/drills/stress', steps: [3], desc: '3 sentences × 4 stress positions, 15 reps.', how: 'Say the sentence so the bold word carries the meaning: higher, a little louder and longer than its neighbours. Everything else stays relaxed.', why: DRILL_WHY.stress },
+  { id: 'match', title: 'Model & match', href: '/drills/match', steps: [4], desc: '5 phrases, 3–5 reps each, with contour overlay.', how: 'Listen to the model, then copy its melody — the shape (where it rises and falls, how wide), not the exact voice.', why: DRILL_WHY.match },
+  { id: 'free', title: 'Free speech + meter', href: '/drills/free', steps: [8], desc: '60–90 s answers with the live variation meter.', how: 'Answer each prompt for 60–90 s. The meter shows your rolling 10 s pitch variation; keep it in the green.', why: DRILL_WHY.free },
+  { id: 'emotion', title: 'Emotion range', href: '/drills/emotion', steps: [], desc: 'One line: neutral, then excited, bored, suspicious, warm, urgent.', how: 'Say the line in your neutral voice first; every emotion is compared with it. Bored should go flatter — the rest should open up.', why: DRILL_WHY.emotion },
+  { id: 'negative', title: 'Negative practice', href: '/drills/negative', steps: [], desc: 'Old flat voice vs new lively voice, same line.', how: 'Deliberately do your old monotone, then the lively version. Feeling the contrast is the point.', why: DRILL_WHY.negative },
+  { id: 'question', title: 'Statement vs question', href: '/drills/question', steps: [], desc: 'Same words — the ending decides.', how: 'Say each line as a statement (falling end) and as a genuine question (rising end).', why: DRILL_WHY.question },
 ];
 
-export const STEP_TASKS: Record<number, { title: string; how: string }> = {
-  2: { title: 'Single words with a pitch rise', how: 'Say each word like a surprised question — a clear glide upward of at least 3 semitones.' },
-  5: { title: 'Reading with marked operative words', how: 'Read each line aloud and make the bold words stand out: lift the pitch, add a little loudness and length.' },
-  6: { title: 'Unmarked reading', how: 'Same idea, but now you choose the operative words. Read as if telling someone something you care about.' },
-  7: { title: 'Scripted Q&A', how: 'Hear the question, then answer with the scripted line — expressively, like a real reply.' },
+export const STEP_TASKS: Record<number, { title: string; how: string; why: string }> = {
+  2: { title: 'Single words with a pitch rise', how: 'Say each word like a surprised question — a clear glide upward of at least 3 semitones.', why: 'One word is the easiest place to feel a big pitch move. Once it’s easy here, you can put it into sentences.' },
+  5: { title: 'Reading with marked operative words', how: 'Read each line aloud and make the bold words stand out: lift the pitch, add a little loudness and length.', why: 'Moves stress from drill sentences into real text, while the markings still take the decision off your plate.' },
+  6: { title: 'Unmarked reading', how: 'Same idea, but now you choose the operative words. Read as if telling someone something you care about.', why: 'In real speech nobody marks the important words for you. Choosing them yourself is the skill conversation needs.' },
+  7: { title: 'Scripted Q&A', how: 'Hear the question, then answer with the scripted line — expressively, like a real reply.', why: 'Adds the back-and-forth of a conversation while the words are still fixed, so your attention stays on delivery.' },
 };

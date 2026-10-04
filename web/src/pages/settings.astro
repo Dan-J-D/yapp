@@ -57,7 +57,7 @@ const sections = [
       {baseline ? (
         <>
           <p class="text-sm text-muted">
-            Calibrated {new Date(baseline.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}. Scores, meters and the L1 filler goal are measured against it. After your first week it’s refined automatically from everything you recorded.
+            Calibrated {new Date(baseline.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}. Scores, meters and the retell filler goal are measured against it. After your first week it’s refined automatically from everything you recorded.
           </p>
           <dl class="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 text-sm tabular-nums">
             {baseRows.map(([k, v]) => (

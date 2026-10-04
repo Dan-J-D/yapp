@@ -8,6 +8,20 @@
       "when": 1790988793303,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791034121148,
+      "tag": "0001_stories",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791034121869,
+      "tag": "0002_yap_program_v2",
+      "breakpoints": true
     }
   ]
 }

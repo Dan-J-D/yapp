@@ -1,18 +1,41 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import YapRunner from '../../components/YapRunner.svelte';
+import ConversationRunner from '../../components/yap/ConversationRunner.svelte';
 import { YAP_MODES } from '../../lib/yap-modes';
 import { YAP_LEVELS } from '../../lib/progression';
-import { getLevel } from '../../lib/server/store';
+import { yapRouteStatus } from '../../lib/daily-program';
+import { appState } from '../../lib/server/stats';
+
 const { level } = Astro.params;
+// Old v1 routes (L1–L4, retell3) → the yap overview; bridge is now chunks.
+if (level === 'bridge') return Astro.redirect('/yap/chunks');
 const lv = YAP_LEVELS.find((l) => l.key === level);
 const extra = YAP_MODES.find((m) => m.mode === level);
 if (!lv && !extra) return Astro.redirect('/yap');
-const unlocked = lv ? lv.level <= getLevel('yap').level : true;
+const s = appState();
+const gate = yapRouteStatus(level!, s.availability, s.yap.level);
 const title = lv ? `${lv.key} · ${lv.name}` : extra!.title;
+const locked = gate.status === 'locked';
 ---
 <Layout title={title}>
   <a href="/yap" class="text-sm text-muted">← Yap</a>
   <h1 class="mb-4 mt-1 text-2xl font-bold">{title}</h1>
-  <YapRunner client:only="svelte" mode={level!} unlocked={unlocked} />
+  {locked ? (
+    <div class="card space-y-3">
+      <p class="font-semibold">🔒 {gate.reason}</p>
+      {gate.reason.startsWith('Part of your daily base') ? (
+        <a href="/daily" class="btn btn-primary btn-lg w-full">Go to Daily</a>
+      ) : (
+        <a href="/yap" class="btn w-full">Back to Yap</a>
+      )}
+    </div>
+  ) : level === 'Y3' ? (
+    <ConversationRunner client:only="svelte" />
+  ) : (
+    <>
+      {gate.status === 'done' && <p class="mb-3 text-sm text-muted">{gate.reason} — you can still practise.</p>}
+      <YapRunner client:only="svelte" mode={level!} />
+    </>
+  )}
 </Layout>

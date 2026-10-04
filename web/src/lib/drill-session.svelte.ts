@@ -130,8 +130,11 @@ export interface DrillCtx {
   session: DrillSession;
 }
 
-/** A Rig tuned to the user's baseline (or untuned, for calibration). */
-export function makeRig(st: ClientState | null, o: { calibrate?: boolean } = {}) {
+/**
+ * A Rig tuned to the user's baseline (or untuned, for calibration). `echoCancellation` when
+ * something talks through the speakers while recording (conversation partner, TTS curveballs).
+ */
+export function makeRig(st: ClientState | null, o: { calibrate?: boolean; echoCancellation?: boolean } = {}) {
   const b = o.calibrate ? null : st?.baseline;
-  return new Rig({ refHz: b?.medianHz, floorHz: b?.f0Floor, ceilingHz: b?.f0Ceiling, bands: st?.liveBands });
+  return new Rig({ refHz: b?.medianHz, floorHz: b?.f0Floor, ceilingHz: b?.f0Ceiling, bands: st?.liveBands, echoCancellation: o.echoCancellation });
 }

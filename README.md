@@ -48,9 +48,9 @@ Requirements:
 
 | Area | Where |
 |---|---|
-| Daily session (warm-up → contrastive stress → model & match → free speech with meter → review) | `/daily` |
+| Daily: the one place to train — an ~18 min base (warm-up → contrastive stress → model & match → yap block → review), then **More**: optional extras, each available / due / done / locked with a reason | `/daily` |
 | Tonality drills, 10-step progression (advance at ≥80% of the last 15 reps), feedback fading continuous → summary → none | `/drills` |
-| Yap stamina L1 Flow · L2 Retell + Pivot · L3 Plan & Drift · L4 Chaos (3 passes unlock the next) and extra modes | `/yap` |
+| Yap Y1 Story retell · Y2 Explain retell · Y3 Conversation · Y4 Chaos (3 passing days unlock the next; one pass per day), spaced story bank (day 0 → +1 → +7), practice extras | `/yap` |
 | Weekly no-feedback transfer test | `/transfer` |
 | Real-life log, daily micro-challenge (web push), LLM role-play partner | `/everyday` |
 | Trends, streaks, drill voice vs everyday voice | `/`, `/history`, `/session/:id` |

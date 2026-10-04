@@ -135,6 +135,69 @@ Stay in character. Reply in 1-3 short spoken sentences, natural and casual, and 
   return chat([{ role: 'system', content: sys }, ...history.slice(-16)], undefined, { temperature: 0.8, timeoutMs: 60_000 });
 }
 
+/**
+ * Y3 conversation partner: a curious friend asking about you. Short spoken replies (1–2 sentences);
+ * roughly every third reply shares something instead of asking, so you get to ask follow-ups too.
+ * `switchTo` asks for a natural topic switch (every 60–90 s).
+ */
+export async function conversationReply(history: { role: 'user' | 'assistant'; content: string }[], switchTo?: string): Promise<string> {
+  const replies = history.filter((m) => m.role === 'assistant').length;
+  const share = replies > 0 && replies % 3 === 2;
+  const sys = `You are a warm, curious friend having a relaxed spoken conversation with the user, who is practising conversation.
+Ask about THEM: their life, opinions, plans and stories. React briefly to what they said before moving on.
+Reply in 1-2 short spoken sentences, casual and natural. No lists, no markdown, no emojis, no stage directions.`;
+  const turn = [
+    share
+      ? 'This time do NOT ask a question: share a short opinion or a tiny anecdote of your own related to what they said, and stop, so they can react or ask you something.'
+      : 'End with one open question that invites a long answer (not yes/no).',
+    switchTo ? `Smoothly switch the topic to "${switchTo}" with a natural bridge (e.g. "that reminds me…", "speaking of…").` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return chat([{ role: 'system', content: `${sys}
+${turn}` }, ...history.slice(-16)], undefined, { temperature: 0.8, timeoutMs: 60_000 });
+}
+
+export interface TurnClass {
+  /** the user asked the partner a question */
+  question: boolean;
+  /** …that follows up on something the partner said */
+  followUp: boolean;
+  /** the user gave more than a minimal answer (details, a story, a reason) */
+  expanded: boolean;
+}
+
+/** Classify one conversation turn (for the Y3 pass: follow-up questions). */
+export async function classifyTurn(t: { partner: string | null; user: string }): Promise<TurnClass> {
+  const raw = await chat(
+    [
+      {
+        role: 'system',
+        content: `You classify one turn of a spoken practice conversation. Return JSON only.
+- question: true if the USER asked the partner any genuine question (not rhetorical).
+- followUp: true if the USER asked a question that follows up on something the PARTNER said or shared (e.g. "Oh, where was that?", "Why do you like it?").
+- expanded: true if the USER answered with substance — details, a reason, an example or a story — rather than a minimal reply.`,
+      },
+      { role: 'user', content: `PARTNER: ${t.partner ?? '(nothing yet)'}
+USER: ${t.user}` },
+    ],
+    {
+      type: 'object',
+      properties: { question: { type: 'boolean' }, followUp: { type: 'boolean' }, expanded: { type: 'boolean' } },
+      required: ['question', 'followUp', 'expanded'],
+    },
+    { timeoutMs: 60_000 },
+  );
+  const j = JSON.parse(raw) as Partial<TurnClass>;
+  return { question: !!j.question, followUp: !!j.followUp && !!j.question, expanded: !!j.expanded };
+}
+
+/** Fallback when the LLM is unavailable: a "?" in the transcript means a question. */
+export function classifyTurnHeuristic(t: { partner: string | null; user: string }): TurnClass {
+  const question = t.user.includes('?');
+  return { question, followUp: question && !!t.partner, expanded: t.user.split(/\s+/).filter(Boolean).length >= 40 };
+}
+
 /** Fresh daily micro-challenge text (falls back to the built-in list on failure). */
 export async function generateChallenge(avoid: string[]): Promise<string> {
   const raw = await chat(

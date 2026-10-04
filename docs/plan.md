@@ -91,6 +91,14 @@ The training content was researched for evidence instead of taken from the origi
 - **Statement vs question endings**: slope of the final 400 ms.
 
 ### Yap stamina levels (revised from your roadmap)
+
+> **Superseded by program v2** (`web/src/lib/daily-program.ts`, `progression.ts`): the yap now runs
+> inside the daily base as one topic a day — a shrinking retell (30 s plan, then 2:00 / 1:30 / 1:00)
+> on a spaced story schedule (day 0 → +1 → +7). Levels: **Y1 Story retell**, **Y2 Explain retell**
+> (PREP), **Y3 Conversation** (AI partner, follow-up questions, topic switches), **Y4 Chaos** (weekly,
+> from More). A pass counts at most once per calendar day; 3 passing days unlock the next level.
+> Thresholds live in `RETELL_RULES` / `CONVERSATION_RULES`. The v1 table below is kept for history.
+
 | Level | Format | Pass criteria (3 passing sessions unlocks the next) |
 |---|---|---|
 | L1 Flow | 2 min, one familiar topic, silent pauses allowed | no dead air >3 s, fillers below your baseline −X% |

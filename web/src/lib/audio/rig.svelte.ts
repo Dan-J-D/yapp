@@ -25,9 +25,12 @@ export class Rig {
   private rec: VoiceRecorder | null = null;
   private raf = 0;
   bands: Bands;
+  /** Called for every analysed frame; components can swap it in and out (e.g. the filler cue). */
+  onFrame: ((f: LiveFrame) => void) | null;
 
   constructor(private opts: RigOptions = {}) {
     this.bands = opts.bands ?? DEFAULT_BANDS;
+    this.onFrame = opts.onFrame ?? null;
   }
 
   async open() {
@@ -43,7 +46,7 @@ export class Rig {
       this.rec.onFrame = (f) => {
         this.trace.push(f);
         if (this.trace.length > 600) this.trace.splice(0, this.trace.length - 600);
-        this.opts.onFrame?.(f);
+        this.onFrame?.(f);
       };
       const tick = () => {
         const last = this.trace[this.trace.length - 1];

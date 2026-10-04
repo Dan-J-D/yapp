@@ -6,7 +6,7 @@
 services:
   web:
     build: ./web
-    restart: unless-stopped
+    restart: always
     # Host networking: the cert gets the machine's real LAN IPs (auto-detected), and the
     # host's Ollama is reachable on 127.0.0.1 without exposing it to the network.
     network_mode: host
@@ -39,7 +39,7 @@ services:
 
   voice-lab:
     build: ./voice-lab
-    restart: unless-stopped
+    restart: always
     ports:
       - "127.0.0.1:${VOICE_LAB_PORT:-8765}:8000"
     environment:

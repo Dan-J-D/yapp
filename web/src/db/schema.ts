@@ -9,7 +9,7 @@ export const sessions = sqliteTable(
     id: text('id').primaryKey(),
     // daily | warmup | drill | yap | everyday | baseline | transfer | challenge | roleplay
     kind: text('kind').notNull(),
-    // e.g. stress, match, free, emotion, negative, question, L1..L4, retell, tabletopics, ...
+    // e.g. stress, match, free, emotion, negative, question, Y1..Y4, retell, conversation, tabletopics, ...
     mode: text('mode'),
     title: text('title'),
     prompt: text('prompt'),
@@ -122,7 +122,7 @@ export const drillReps = sqliteTable(
   (t) => [index('drill_reps_drill_idx').on(t.drill, t.createdAt)],
 );
 
-/** Progress per track: 'tonality' (steps 1..10) and 'yap' (L1..L4). */
+/** Progress per track: 'tonality' (steps 1..10) and 'yap' (Y1..Y4). */
 export const levels = sqliteTable('levels', {
   track: text('track').primaryKey(),
   level: integer('level').notNull().default(1),
@@ -181,6 +181,31 @@ export const authSessions = sqliteTable('auth_sessions', {
   expiresAt: integer('expires_at').notNull(),
 });
 
+/** Retell topics on a spaced schedule (day 0 → +1 → +7, then retired). */
+export const stories = sqliteTable(
+  'stories',
+  {
+    // seed:<kind>:<slug> for built-in prompts, a uuid for your own
+    id: text('id').primaryKey(),
+    prompt: text('prompt').notNull(),
+    // story | explain
+    kind: text('kind').notNull(),
+    // seed | user
+    source: text('source').notNull().default('seed'),
+    // 0 = new, 1 = told on day 0, 2 = told at +1, 3 = retired
+    stage: integer('stage').notNull().default(0),
+    firstDay: text('first_day'),
+    lastDay: text('last_day'),
+    nextDueDay: text('next_due_day'),
+    tellCount: integer('tell_count').notNull().default(0),
+    lastSessionId: text('last_session_id'),
+    archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+    history: text('history', { mode: 'json' }).$type<{ day: string; stage: number; sessionId: string; passed?: boolean | null }[]>(),
+    createdAt: integer('created_at').notNull().$defaultFn(now),
+  },
+  (t) => [index('stories_due_idx').on(t.nextDueDay), index('stories_kind_stage_idx').on(t.kind, t.stage)],
+);
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).$type<unknown>(),
@@ -198,3 +223,4 @@ export type Recording = typeof recordings.$inferSelect;
 export type Analysis = typeof analyses.$inferSelect;
 export type Word = typeof words.$inferSelect;
 export type Baseline = typeof baselines.$inferSelect;
+export type Story = typeof stories.$inferSelect;

@@ -18,7 +18,8 @@
   import RepDrill from './RepDrill.svelte';
   import Warmup from './Warmup.svelte';
 
-  let { drill, step = undefined }: { drill: DrillId; step?: number } = $props();
+  // onexit: embedded in Daily → More (back to the menu instead of the drills page)
+  let { drill, step = undefined, onexit = undefined }: { drill: DrillId; step?: number; onexit?: () => void } = $props();
 
   const info = DRILLS.find((d) => d.id === drill)!;
   let st = $state<ClientState | null>(null);
@@ -38,6 +39,7 @@
   const isCurrent = $derived(!!st && stage != null && st.tonality.step === stage);
   const title = $derived(drill === 'step' && step ? STEP_TASKS[step]?.title ?? info.title : info.title);
   const how = $derived(drill === 'step' && step ? STEP_TASKS[step]?.how ?? info.how : info.how);
+  const why = $derived(drill === 'step' && step ? STEP_TASKS[step]?.why ?? info.why : info.why);
 
   async function bestTakes(): Promise<BestTake[]> {
     try {
@@ -112,12 +114,23 @@
   function complete() {
     ctx?.session.finish();
   }
+
+  function exit() {
+    ctx?.session.finish();
+    ctx?.session.close();
+    ctx?.rig.close();
+    onexit?.();
+  }
 </script>
 
 {#snippet after()}
   <div class="grid grid-cols-2 gap-2">
-    <a class="btn btn-lg" href="/drills">Drills</a>
-    <button class="btn btn-primary btn-lg" onclick={() => location.reload()}>Another round</button>
+    {#if onexit}
+      <button class="btn btn-primary btn-lg col-span-2" onclick={exit}>Back to More</button>
+    {:else}
+      <a class="btn btn-lg" href="/drills">Drills</a>
+      <button class="btn btn-primary btn-lg" onclick={() => location.reload()}>Another round</button>
+    {/if}
   </div>
   {#if ctx}<a class="block text-center text-sm text-accent underline" href="/session/{ctx.session.id}">Open this session →</a>{/if}
 {/snippet}
@@ -133,6 +146,7 @@
         <FeedbackBadge {feedback} />
       </div>
       <p>{how}</p>
+      <p class="text-sm text-muted"><span class="font-semibold text-fg">Why:</span> {why}</p>
       {#if drill === 'emotion'}
         <div class="rounded-xl bg-surface-2 p-3">
           <div class="label mb-1">Your line</div>
@@ -158,6 +172,7 @@
     </div>
     <MicError error={micError} />
     <button class="btn btn-primary btn-lg w-full" onclick={begin} disabled={starting}>{starting ? 'Opening microphone…' : 'Start'}</button>
+    {#if onexit}<button class="btn btn-ghost w-full text-sm text-muted" onclick={exit}>Back to More</button>{/if}
   </div>
 {:else if phase === 'run' && ctx}
   {#if drill === 'warmup'}
@@ -167,4 +182,7 @@
   {:else}
     <RepDrill {ctx} {items} {feedback} {drill} live="trace" labelPrefix="Rep" oncomplete={complete} {after} />
   {/if}
+{/if}
+{#if phase === 'run' && onexit && !ctx?.rig.recording}
+  <button class="btn btn-ghost mt-3 w-full text-sm text-muted" onclick={exit}>Stop and go back to More</button>
 {/if}

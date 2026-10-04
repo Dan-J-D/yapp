@@ -11,6 +11,9 @@
   import MicError from '../MicError.svelte';
   import TakeRecorder from './TakeRecorder.svelte';
 
+  // onexit: embedded in Daily → More
+  let { onexit = undefined }: { onexit?: () => void } = $props();
+
   const SECONDS = 120;
   const prompts = shuffle(FREE_PROMPTS);
   let pi = $state(0);
@@ -55,6 +58,13 @@
     phase = 'done';
   }
 
+  function exit() {
+    ctx?.session.close();
+    ctx?.rig.close();
+    release();
+    onexit?.();
+  }
+
   async function loadHistory() {
     showCompare = true;
     try {
@@ -79,6 +89,7 @@
     </div>
     <MicError error={micError} />
     <button class="btn btn-primary btn-lg w-full" onclick={begin}>Ready</button>
+    {#if onexit}<button class="btn btn-ghost w-full text-sm text-muted" onclick={exit}>Back to More</button>{/if}
   </div>
 {:else if phase === 'ready' && ctx}
   <div class="space-y-4">
@@ -128,7 +139,11 @@
     {/if}
     <div class="grid grid-cols-2 gap-2">
       <a class="btn btn-lg" href="/history">History</a>
-      <a class="btn btn-primary btn-lg" href="/">Done</a>
+      {#if onexit}
+        <button class="btn btn-primary btn-lg" onclick={exit}>Back to More</button>
+      {:else}
+        <a class="btn btn-primary btn-lg" href="/">Done</a>
+      {/if}
     </div>
   </div>
 {/if}

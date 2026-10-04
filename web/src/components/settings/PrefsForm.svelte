@@ -13,7 +13,7 @@
   };
   let { initial }: { initial: Prefs } = $props();
 
-  let p = $state<Prefs>({ fillerReductionPct: 10, fillerCue: 'flash', ttsVoice: null, challengeHour: 18, dailyMinutes: 18, retellMinutes: [4, 3, 2] });
+  let p = $state<Prefs>({ fillerReductionPct: 10, fillerCue: 'flash', ttsVoice: null, challengeHour: 18, dailyMinutes: 18, retellMinutes: [2, 1.5, 1] });
   let voices = $state<{ name: string; lang: string; local: boolean }[]>([]);
   let saving = $state(false);
   let status = $state<string | null>(null);
@@ -80,7 +80,7 @@
   </fieldset>
 
   <label class="block space-y-1">
-    <span class="label">L1 filler goal: below baseline by</span>
+    <span class="label">Retell filler goal (telling 3): below baseline by</span>
     <div class="flex items-center gap-3">
       <input type="range" min="0" max="80" step="5" class="flex-1 accent-[var(--accent)]" bind:value={p.fillerReductionPct} aria-describedby="frp" />
       <span id="frp" class="w-14 text-right font-semibold tabular-nums">−{p.fillerReductionPct}%</span>
@@ -107,14 +107,11 @@
         {#each Array.from({ length: 24 }, (_, h) => h) as h}<option value={h}>{hourLabel(h)}</option>{/each}
       </select>
     </label>
-    <label class="block space-y-1">
-      <span class="label">Daily session length (min)</span>
-      <input type="number" class="input" min="5" max="60" bind:value={p.dailyMinutes} />
-    </label>
   </div>
 
   <fieldset>
     <legend class="label mb-2">Shrinking retell (minutes)</legend>
+    <p class="mb-2 text-xs text-muted">The yap block of the daily base. Default 2 / 1.5 / 1 (about 18 min for the whole base).</p>
     <div class="grid grid-cols-3 gap-2">
       {#each [0, 1, 2] as i}
         <label class="block space-y-1">

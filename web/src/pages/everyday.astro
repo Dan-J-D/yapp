@@ -35,6 +35,7 @@ const today = db.select().from(schema.streaks).where(eq(schema.streaks.day, loca
             <h2 id="challenge-h" class="text-lg font-bold">Today’s micro-challenge</h2>
             {today?.challengeDone && <span class="chip border-good text-good">✓ done today</span>}
           </div>
+          <p class="text-sm text-muted"><span class="font-semibold text-fg">Why:</span> short, low-stakes reps at random times of day move the skill out of practice sessions and into your normal day.</p>
           {openChallenge ? (
             <ChallengeRecorder client:only="svelte" autoFocus />
           ) : (
@@ -46,12 +47,14 @@ const today = db.select().from(schema.streaks).where(eq(schema.streaks.day, loca
         </section>
     <section id="log" class="card scroll-mt-20 space-y-3" aria-labelledby="log-h">
           <h2 id="log-h" class="text-lg font-bold">Real-life log</h2>
+          <p class="text-sm text-muted"><span class="font-semibold text-fg">Why:</span> a quick recap after a real conversation shows the gap between your practice voice and your everyday voice — the clearest sign of whether training is working.</p>
           <EverydayLog client:only="svelte" />
         </section>
     <section id="roleplay" class="card scroll-mt-20 space-y-3" aria-labelledby="rp-h">
           <div>
             <h2 id="rp-h" class="text-lg font-bold">Role-play partner</h2>
             <p class="text-sm text-muted">Tonality step 9 · simulated conversation. An AI partner talks, you answer out loud.</p>
+            <p class="mt-1 text-sm text-muted"><span class="font-semibold text-fg">Why:</span> conversation is where a flat voice and fillers actually happen. A partner who responds makes you plan and deliver at the same time, without the stakes of a real chat.</p>
           </div>
           <RoleplayPartner client:only="svelte" />
         </section>

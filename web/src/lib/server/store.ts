@@ -2,6 +2,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db, schema } from '../../db';
 import type { Baseline } from '../../db/schema';
+import { localDay } from '../daily-program';
 import { DEFAULT_BANDS, type Bands } from '../scoring';
 
 export function getSetting<T>(key: string, fallback: T): T {
@@ -13,10 +14,11 @@ export function setSetting(key: string, value: unknown) {
 }
 
 export interface Prefs {
-  fillerReductionPct: number; // L1: fillers below baseline −X%
+  fillerReductionPct: number; // retell: telling-3 fillers below baseline −X%
   fillerCue: 'off' | 'flash' | 'vibrate' | 'both';
   ttsVoice: string | null;
   challengeHour: number; // local hour for the daily push
+  /** no longer used: the daily base is a fixed ~18 min */
   dailyMinutes: number;
   retellMinutes: [number, number, number];
 }
@@ -26,7 +28,7 @@ export const DEFAULT_PREFS: Prefs = {
   ttsVoice: null,
   challengeHour: 18,
   dailyMinutes: 18,
-  retellMinutes: [4, 3, 2],
+  retellMinutes: [2, 1.5, 1],
 };
 export const getPrefs = (): Prefs => ({ ...DEFAULT_PREFS, ...getSetting<Partial<Prefs>>('prefs', {}) });
 
@@ -47,17 +49,21 @@ export function getLevel(track: 'tonality' | 'yap') {
   db.insert(schema.levels).values({ track, level: 1, passes: 0, history: [] }).onConflictDoNothing().run();
   return db.select().from(schema.levels).where(eq(schema.levels.track, track)).get()!;
 }
-export function saveLevel(track: 'tonality' | 'yap', level: number, passes: number, event?: string) {
+/** `at` dates the history event (e.g. the session's start, so a pass lands on the day it was earned). */
+export function saveLevel(track: 'tonality' | 'yap', level: number, passes: number, event?: string, at = Date.now()) {
   const cur = getLevel(track);
   const history = [...(cur.history ?? [])];
-  if (event) history.push({ at: Date.now(), level, event });
+  if (event) history.push({ at, level, event });
   db.update(schema.levels).set({ level, passes, history, updatedAt: Date.now() }).where(eq(schema.levels.track, track)).run();
 }
 
 /** Local calendar day (container TZ) as YYYY-MM-DD. */
-export function localDay(ts = Date.now()) {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export { localDay };
+
+/** Timestamp of local midnight starting a YYYY-MM-DD day (container TZ). */
+export function dayStartTs(day: string) {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d).getTime();
 }
 
 export function bumpStreak(ts: number, minutes: number, flags: { daily?: boolean; challenge?: boolean } = {}) {
@@ -78,6 +84,11 @@ export function bumpStreak(ts: number, minutes: number, flags: { daily?: boolean
       .where(eq(schema.streaks.day, day))
       .run();
   }
+}
+
+/** Set the daily-base flag on an existing streak day (no extra session or minutes). */
+export function markDailyDone(day: string) {
+  db.update(schema.streaks).set({ dailyDone: true }).where(eq(schema.streaks.day, day)).run();
 }
 
 /** Consecutive practice days ending today (or yesterday, so the streak survives until tonight). */

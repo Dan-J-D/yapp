@@ -8,7 +8,7 @@ import { advanceTonality } from '../progression';
 import { classifyStSd, cueLatencies, expressiveness, fluency, type WordIn } from '../scoring';
 import { scoreDrill, type RecMeta } from './drills';
 import { finalizeSession } from './finalize';
-import { analyzeTalk } from './ollama';
+import { analyzeTalk, classifyTurn, classifyTurnHeuristic } from './ollama';
 import { getBaseline, getLevel, repsAtStep, saveLevel } from './store';
 import { analyzeAudio } from './voicelab';
 
@@ -183,6 +183,22 @@ export async function processRecording(recordingId: string, stage: (s: string) =
     } catch (e) {
       llm = { error: (e as Error).message };
     }
+  }
+
+  // Conversation turns (Y3): did you ask a (follow-up) question, did you expand?
+  const conv = meta.conv as { partner?: string | null } | undefined;
+  if (conv) {
+    const t = { partner: conv.partner ?? (meta.partner as string | undefined) ?? null, user: vl.text ?? '' };
+    let turn;
+    if (t.user.trim()) {
+      stage('LLM turn check');
+      try {
+        turn = { ...(await classifyTurn(t)), source: 'llm' };
+      } catch {
+        turn = { ...classifyTurnHeuristic(t), source: 'heuristic' };
+      }
+    } else turn = { question: false, followUp: false, expanded: false, source: 'empty' };
+    llm = { ...(llm ?? {}), turn };
   }
 
   stage('saving');

@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import SyncStatus from '../components/SyncStatus.svelte';
+import InstallPrompt from '../components/InstallPrompt.svelte';
 
 interface Props {
   title?: string;
@@ -33,6 +34,8 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
     <title>{title ? `${title} · Yapp` : 'Yapp'}</title>
     <script is:inline>
       try { const t = localStorage.getItem('yapp-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+      // Chromium fires this early, often before islands hydrate; keep it for InstallPrompt.svelte.
+      addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__yappInstall = e; dispatchEvent(new Event('yapp-installable')); });
       if ('serviceWorker' in navigator) addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(() => {});
         // once per tab session (logged-in pages only): cache the main pages for offline use
@@ -75,5 +78,6 @@ const active = (href: string) => (href === '/' ? path === '/' : path.startsWith(
         </div>
       </nav>
     )}
+    {nav && <InstallPrompt client:idle />}
   </body>
 </html>

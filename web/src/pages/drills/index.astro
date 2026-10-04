@@ -1,6 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { DRILLS, STEP_HOME } from '../../lib/drill-plan';
+import { DRILLS, STEP_HOME, STEP_TASKS } from '../../lib/drill-plan';
 import { TONALITY_STEPS, MASTERY_WINDOW } from '../../lib/progression';
 import { appState } from '../../lib/server/stats';
 
@@ -10,6 +10,23 @@ const m = s.tonality.mastery;
 const pct = Math.round(m.rate * 100);
 const fbText = { continuous: 'live feedback', summary: 'summary feedback only', none: 'no feedback (confirmation reps)' }[s.tonality.feedback];
 const currentHref = STEP_HOME[step] ?? '/drills';
+
+// One card per progression step, in order; drills outside the progression are listed separately.
+const LATER_STEPS: Record<number, { desc: string; why: string }> = {
+  9: { desc: 'Talk with an AI partner who answers back.', why: 'Conversation is where a flat voice and fillers actually happen. A partner makes you plan and deliver at the same time, without real-life stakes.' },
+  10: { desc: 'Record a short recap after real conversations.', why: 'The real test: it shows whether your practice voice turns up in everyday talk.' },
+};
+const stepCards = TONALITY_STEPS.map((t) => {
+  const drill = DRILLS.find((d) => d.steps.length === 1 && d.steps[0] === t.step);
+  const info = drill ?? (STEP_TASKS[t.step] ? { desc: STEP_TASKS[t.step].how, why: STEP_TASKS[t.step].why } : LATER_STEPS[t.step]);
+  return { step: t.step, name: t.name, href: STEP_HOME[t.step], desc: info.desc, why: info.why };
+});
+const extras = DRILLS.filter((d) => d.steps.length === 0);
+// Same gating and labels as Daily → More.
+const av = s.availability;
+const item = (id: string) => av.more.find((i) => i.id === id);
+const chip: Record<string, string> = { due: 'border-warn text-warn', available: 'border-accent text-accent', done: 'border-good text-good', locked: '' };
+const transfer = item('transfer');
 ---
 <Layout title="Drills">
   <h1 class="mb-1 text-2xl font-bold">Tonality drills</h1>
@@ -37,38 +54,42 @@ const currentHref = STEP_HOME[step] ?? '/drills';
     </div>
   </a>
 
+  <h2 class="mb-2 text-lg font-bold">Progression</h2>
   <div class="space-y-3">
-    {DRILLS.map((d) => {
-      const current = d.steps.includes(step);
-      const href = d.id === 'step' && [2, 5, 6, 7].includes(step) ? `/drills/step?step=${step}` : d.href;
+    {stepCards.map((c) => {
+      const current = c.step === step;
+      const done = c.step < step;
       return (
-        <a href={href} class={`card flex items-center gap-4 ${current ? 'border-accent' : ''}`}>
-          <div class={`grid h-11 min-w-11 shrink-0 place-items-center rounded-xl px-2 text-sm font-black ${current ? 'bg-accent text-accent-fg' : 'bg-surface-2'}`}>
-            {d.steps.length ? (d.id === 'step' ? '2·5·6·7' : d.steps.join('·')) : '+'}
+        <a href={c.href} class={`card flex items-center gap-4 ${current ? 'border-accent' : ''}`}>
+          <div class={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-black ${current ? 'bg-accent text-accent-fg' : done ? 'bg-good text-white' : 'bg-surface-2'}`}>
+            {done ? '✓' : c.step}
           </div>
           <div class="min-w-0 flex-1">
-            <div class="font-semibold">{d.title} {current && <span class="chip ml-1 border-accent text-accent">now</span>}</div>
-            <div class="text-sm text-muted">{d.desc}</div>
+            <div class="font-semibold">{c.name} {current && <span class="chip ml-1 border-accent text-accent">now · counts toward mastery</span>}{c.step === 8 && <span class="chip ml-1">also: retell tellings in the daily base</span>}</div>
+            <div class="text-sm text-muted">{c.desc}</div>
+            <div class="mt-1 text-xs text-muted">{c.why}</div>
           </div>
         </a>
       );
     })}
   </div>
 
+  <h2 class="mb-2 mt-8 text-lg font-bold">Extra drills</h2>
+  <div class="space-y-3">
+    {extras.map((d) => (
+      <a href={d.href} class="card block">
+        <div class="flex flex-wrap items-center gap-2 font-semibold">{d.title} {item(d.id) && <span class={`chip ${chip[item(d.id)!.status]}`}>{item(d.id)!.status} · {item(d.id)!.countsToward.join(', ')}</span>}</div>
+        <div class="text-sm text-muted">{d.desc}</div>
+        <div class="mt-1 text-xs text-muted">{d.why}</div>
+      </a>
+    ))}
+  </div>
+
   <h2 class="mb-2 mt-8 text-lg font-bold">Sessions</h2>
   <div class="grid gap-3 sm:grid-cols-3">
-    <a href="/daily" class="card"><div class="font-semibold">Daily session</div><div class="text-sm text-muted">15–20 min, everything in one flow.</div></a>
-    <a href="/transfer" class={`card ${s.transferDue ? 'border-warn' : ''}`}><div class="font-semibold">Transfer test {s.transferDue && <span class="chip ml-1 border-warn text-warn">due</span>}</div><div class="text-sm text-muted">Weekly 2-min monologue, no feedback.</div></a>
+    <a href="/daily" class={`card ${av.base.done ? '' : 'border-accent'}`}><div class="font-semibold">Daily {av.base.done ? <span class="chip ml-1 border-good text-good">base done</span> : <span class="chip ml-1 border-accent text-accent">base to do</span>}</div><div class="text-sm text-muted">~18 min base, then extras in More.</div></a>
+    <a href="/transfer" class={`card ${s.transferDue ? 'border-warn' : ''}`}><div class="font-semibold">Transfer test {transfer && <span class={`chip ml-1 ${chip[transfer.status]}`}>{transfer.status === 'locked' ? transfer.reason : transfer.status}</span>}</div><div class="text-sm text-muted">Weekly 2-min monologue, no feedback.</div></a>
     <a href="/calibrate" class={`card ${!s.baseline ? 'border-warn' : ''}`}><div class="font-semibold">Calibrate {!s.baseline && <span class="chip ml-1 border-warn text-warn">needed</span>}</div><div class="text-sm text-muted">Baseline: 60 s talk + reading.</div></a>
   </div>
 
-  <h2 class="mb-2 mt-8 text-lg font-bold">Progression</h2>
-  <ol class="card space-y-1.5 text-sm">
-    {TONALITY_STEPS.map((t) => (
-      <li class={`flex items-center gap-3 ${t.step === step ? 'font-semibold' : t.step < step ? 'text-muted' : ''}`}>
-        <span class={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs ${t.step < step ? 'bg-good text-white' : t.step === step ? 'bg-accent text-accent-fg' : 'border border-line'}`}>{t.step < step ? '✓' : t.step}</span>
-        <a href={STEP_HOME[t.step]} class="flex-1 py-1">{t.name}</a>
-      </li>
-    ))}
-  </ol>
 </Layout>

@@ -6,6 +6,7 @@
   import { bandOf, kindLabel, sessionLabel } from '../../lib/dashboard';
   import type { Bands } from '../../lib/scoring';
   import TranscriptPlayer from '../TranscriptPlayer.svelte';
+  import ProgramResult from '../yap/ProgramResult.svelte';
   import ContourPlot from './ContourPlot.svelte';
 
   let { initial, bands }: { initial: any; bands: Bands } = $props();
@@ -183,6 +184,11 @@
         {#if bandOf(sum.stSd, bands)}<span class="chip">band: {bandOf(sum.stSd, bands)}</span>{/if}
       </div>
 
+      {#if sum.program}
+        <div class="border-t border-line pt-3"><ProgramResult program={sum.program} /></div>
+      {/if}
+
+      <!-- v1 yap levels (L1–L4) on sessions from before program v2 -->
       {#if sum.yap}
         <div class="space-y-2 border-t border-line pt-3">
           <div class="font-semibold {sum.yap.passed ? 'text-good' : 'text-warn'}">{sum.yap.passed ? '✓ Level passed' : 'Not a pass yet'}{sum.yapLevel ? ` · L${sum.yapLevel}` : ''}</div>

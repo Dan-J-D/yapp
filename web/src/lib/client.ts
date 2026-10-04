@@ -1,18 +1,24 @@
 // Browser helpers shared by islands.
+import type { Availability, DailyPart } from './daily-program';
 import { DEFAULT_BANDS, type Bands } from './scoring';
 
 export interface ClientState {
   baseline: { medianHz: number | null; f0Floor: number | null; f0Ceiling: number | null; stSd: number | null; fillersPerMin: number | null; mlr: number | null; wpm: number | null } | null;
   liveBands: Bands;
   tonality: { step: number; name: string; mastery: { rate: number; count: number; ready: boolean }; feedback: 'continuous' | 'summary' | 'none' };
-  yap: { level: number; passes: number; name: string };
+  yap: { level: number; key: string; passes: number; passDays: string[]; passesToUnlock: number; name: string; passedToday: boolean };
+  program: { today: string; parts: DailyPart[]; dueStories: number };
+  availability: Availability | null;
   streak: number;
   transferDue: boolean;
+  lastTransferAt?: number | null;
+  today?: { dailyDone: boolean; minutes: number; sessions: number } | null;
   prefs: {
     fillerReductionPct: number;
     fillerCue: 'off' | 'flash' | 'vibrate' | 'both';
     ttsVoice: string | null;
     challengeHour: number;
+    /** unused: the daily base is a fixed ~18 min */
     dailyMinutes: number;
     retellMinutes: [number, number, number];
   };
@@ -22,10 +28,12 @@ const FALLBACK: ClientState = {
   baseline: null,
   liveBands: DEFAULT_BANDS,
   tonality: { step: 1, name: 'Sustained sounds & glides', mastery: { rate: 0, count: 0, ready: false }, feedback: 'continuous' },
-  yap: { level: 1, passes: 0, name: 'Flow' },
+  yap: { level: 1, key: 'Y1', passes: 0, passDays: [], passesToUnlock: 3, name: 'Story retell', passedToday: false },
+  program: { today: '', parts: [], dueStories: 0 },
+  availability: null,
   streak: 0,
   transferDue: false,
-  prefs: { fillerReductionPct: 10, fillerCue: 'flash', ttsVoice: null, challengeHour: 18, dailyMinutes: 18, retellMinutes: [4, 3, 2] },
+  prefs: { fillerReductionPct: 10, fillerCue: 'flash', ttsVoice: null, challengeHour: 18, dailyMinutes: 18, retellMinutes: [2, 1.5, 1] },
 };
 
 /** App state from the server, cached in localStorage so pages work offline. */
@@ -41,9 +49,23 @@ export async function getState(): Promise<ClientState> {
   } catch {
     try {
       const c = localStorage.getItem('yapp-state');
-      if (c) return JSON.parse(c) as ClientState;
+      if (c) return { ...FALLBACK, ...(JSON.parse(c) as ClientState) };
     } catch {}
     return FALLBACK;
+  }
+}
+
+/** Offline fallback for "today's base is done" (set when the base finishes on this device). */
+export function markBaseDoneLocal(day: string) {
+  try {
+    localStorage.setItem('yapp-base-done', day);
+  } catch {}
+}
+export function baseDoneLocal(day: string) {
+  try {
+    return localStorage.getItem('yapp-base-done') === day;
+  } catch {
+    return false;
   }
 }
 
@@ -80,18 +102,48 @@ export function waitForSession(sessionId: string, recordingIds: string[], timeou
 }
 
 // ---- TTS (curveballs, role-play partner, model phrases)
-export function speak(text: string, opts: { voice?: string | null; rate?: number; pitch?: number } = {}): Promise<void> {
+/** Voices load asynchronously (always empty on first call in Firefox/Chrome); wait up to 1 s. */
+function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  const now = speechSynthesis.getVoices();
+  if (now.length) return Promise.resolve(now);
   return new Promise((res) => {
-    if (!('speechSynthesis' in window)) return res();
+    const done = () => {
+      speechSynthesis.removeEventListener('voiceschanged', done);
+      res(speechSynthesis.getVoices());
+    };
+    speechSynthesis.addEventListener('voiceschanged', done);
+    setTimeout(done, 1000);
+  });
+}
+
+// Held so the utterance isn't garbage-collected mid-speech (its onend would then never fire).
+let current: SpeechSynthesisUtterance | null = null;
+
+export async function speak(text: string, opts: { voice?: string | null; rate?: number; pitch?: number } = {}): Promise<void> {
+  if (!('speechSynthesis' in window)) return;
+  const voices = await loadVoices();
+  if (speechSynthesis.speaking || speechSynthesis.pending) {
+    speechSynthesis.cancel();
+    // speak() straight after cancel() is silently dropped by some engines (speech-dispatcher)
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return new Promise((res) => {
     const u = new SpeechSynthesisUtterance(text);
-    const voices = speechSynthesis.getVoices();
     const v = (opts.voice && voices.find((x) => x.name === opts.voice)) || voices.find((x) => x.lang.startsWith('en') && x.default) || voices.find((x) => x.lang.startsWith('en'));
     if (v) u.voice = v;
+    u.lang = v?.lang ?? 'en-US';
     u.rate = opts.rate ?? 1;
     u.pitch = opts.pitch ?? 1;
-    u.onend = () => res();
-    u.onerror = () => res();
-    speechSynthesis.cancel();
+    // Some engines never fire end/error; give up after a generous estimate of the speaking time.
+    const timer = setTimeout(finish, 3000 + (text.length * 120) / u.rate);
+    function finish() {
+      clearTimeout(timer);
+      if (current === u) current = null;
+      res();
+    }
+    u.onend = finish;
+    u.onerror = finish;
+    current = u;
     speechSynthesis.speak(u);
   });
 }

@@ -12,7 +12,7 @@ export const PUT: APIRoute = async ({ request }) => {
     fillerCue: ['off', 'flash', 'vibrate', 'both'].includes(body.fillerCue as string) ? body.fillerCue! : cur.fillerCue,
     ttsVoice: body.ttsVoice === undefined ? cur.ttsVoice : body.ttsVoice ? String(body.ttsVoice).slice(0, 200) : null,
     challengeHour: Math.round(clamp(body.challengeHour ?? cur.challengeHour, 0, 23)),
-    dailyMinutes: clamp(body.dailyMinutes ?? cur.dailyMinutes, 5, 60),
+    dailyMinutes: cur.dailyMinutes, // unused since program v2 (fixed ~18 min base)
     retellMinutes: Array.isArray(body.retellMinutes) && body.retellMinutes.length === 3
       ? (body.retellMinutes.map((m) => clamp(Number(m), 0.5, 10)) as Prefs['retellMinutes'])
       : cur.retellMinutes ?? DEFAULT_PREFS.retellMinutes,

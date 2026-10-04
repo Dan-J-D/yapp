@@ -57,10 +57,11 @@ export class VoiceRecorder {
     mute.gain.value = 0;
     src.connect(r.node).connect(mute).connect(r.ctx.destination);
     r.analyzer = new LiveAnalyzer(r.ctx.sampleRate, opts);
-    r.node.port.onmessage = (e: MessageEvent<{ frame: Float32Array; t: number }>) => {
+    r.node.port.onmessage = (e: MessageEvent<{ frame: Float32Array; lp?: Float32Array; t: number }>) => {
       const t = r.recording ? e.data.t - r.t0 : e.data.t;
-      const f = r.analyzer.process(e.data.frame, t);
-      if (r.recording) r.contour.push([Math.round(t * 100) / 100, f.st == null ? null : Math.round(f.st * 100) / 100]);
+      const f = r.analyzer.process(e.data.frame, t, e.data.lp);
+      if (!f) return; // analyzer output lags ~40 ms; nothing yet
+      if (r.recording) r.contour.push([Math.round(f.t * 100) / 100, f.st == null ? null : Math.round(f.st * 100) / 100]);
       r.onFrame?.(f);
     };
     return r;

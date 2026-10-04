@@ -18,6 +18,11 @@ const bands = state.baseline?.bands ?? DEFAULT_BANDS;
 const practiceDays = cal.flat().filter((c) => c.level > 0).length;
 const totalMinutes = cal.flat().reduce((s, c) => s + c.minutes, 0);
 const today = state.today;
+const av = state.availability;
+const baseDone = av.base.done || !!today?.dailyDone;
+const todayYap = av.base.yap;
+const extrasOpen = av.more.filter((i) => i.status === 'due' || i.status === 'available').length;
+const extrasDue = av.more.filter((i) => i.status === 'due').length;
 const f = (v: number | null | undefined, d = 1) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d));
 const masteryPct = Math.round(state.tonality.mastery.rate * 100);
 const calBg = ['var(--surface-2)', 'color-mix(in oklab, var(--accent) 30%, var(--surface-2))', 'color-mix(in oklab, var(--accent) 55%, var(--surface-2))', 'color-mix(in oklab, var(--accent) 80%, var(--surface-2))', 'var(--accent)'];
@@ -51,7 +56,7 @@ const cmpRows: { label: string; key: 'stSd' | 'expressiveness' | 'fillersPerMin'
       <div class="flex items-start justify-between gap-3">
         <div>
           <h2 id="today-h" class="label">Today</h2>
-          <div class="mt-1 text-lg font-bold">{today?.dailyDone ? 'Daily session done ✓' : 'Daily session not done yet'}</div>
+          <div class="mt-1 text-lg font-bold">{baseDone ? 'Daily base done ✓' : av.base.started ? 'Daily base in progress' : 'Daily base not done yet'}</div>
           <div class="text-sm text-muted">{today ? `${Math.round(today.minutes)} min · ${today.sessions} session${today.sessions === 1 ? '' : 's'} today` : 'No practice yet today'}</div>
         </div>
         <div class="shrink-0 text-center" aria-label={`Streak: ${state.streak} days`}>
@@ -59,7 +64,15 @@ const cmpRows: { label: string; key: 'stSd' | 'expressiveness' | 'fillersPerMin'
           <div class="label">day streak</div>
         </div>
       </div>
-      {!today?.dailyDone && <a href="/daily" class="btn btn-primary btn-lg w-full">Start daily session</a>}
+      <div class="space-y-1 rounded-xl bg-surface-2 p-3 text-sm">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="label">Today’s yap</span>
+          <span class={`chip ${state.yap.passedToday ? 'border-good text-good' : ''}`}>{state.yap.passedToday ? 'yap pass today ✓' : 'no yap pass yet today'}</span>
+        </div>
+        <div class="font-semibold">{todayYap.label}{todayYap.story ? `: ${todayYap.story.prompt}` : todayYap.type === 'conversation' ? ' (5 min)' : ''}</div>
+        <div class="text-xs text-muted">{baseDone ? `${extrasOpen} extra${extrasOpen === 1 ? '' : 's'} available${extrasDue ? `, ${extrasDue} due` : ''} in More.` : todayYap.why}</div>
+      </div>
+      <a href="/daily" class={`btn btn-lg w-full ${baseDone ? '' : 'btn-primary'}`}>{baseDone ? 'More practice →' : av.base.started ? 'Resume daily base' : 'Start daily base'}</a>
       {state.transferDue && (
         <a href="/transfer" class="flex items-center gap-3 rounded-xl border border-model/50 p-3">
           <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-model/15 font-bold text-model" aria-hidden="true">T</span>
@@ -93,15 +106,15 @@ const cmpRows: { label: string; key: 'stSd' | 'expressiveness' | 'fillersPerMin'
       </a>
       <a href="/yap" class="block border-t border-line pt-4">
         <div class="flex items-baseline justify-between gap-2">
-          <span class="font-semibold">Yap L{state.yap.level} · {state.yap.name}</span>
-          <span class="text-sm tabular-nums text-muted">{state.yap.passes}/{PASSES_TO_UNLOCK} passes</span>
+          <span class="font-semibold">Yap {state.yap.key} · {state.yap.name}</span>
+          <span class="text-sm tabular-nums text-muted">{state.yap.passes}/{PASSES_TO_UNLOCK} passing days</span>
         </div>
-        <div class="mt-2 flex gap-1.5" aria-label={`${state.yap.passes} of ${PASSES_TO_UNLOCK} passes`}>
+        <div class="mt-2 flex gap-1.5" aria-label={`${state.yap.passes} of ${PASSES_TO_UNLOCK} passing days`}>
           {Array.from({ length: PASSES_TO_UNLOCK }, (_, i) => (
             <span class={`h-2 flex-1 rounded-full ${i < state.yap.passes ? 'bg-accent' : 'bg-surface-2'}`}></span>
           ))}
         </div>
-        <div class="mt-1 text-xs text-muted">{state.yap.level < YAP_LEVELS.length ? `Pass ${PASSES_TO_UNLOCK}× to unlock L${state.yap.level + 1}` : 'Top level — keep yapping'}</div>
+        <div class="mt-1 text-xs text-muted">{state.yap.level < YAP_LEVELS.length ? `Pass on ${PASSES_TO_UNLOCK} different days to unlock ${YAP_LEVELS[state.yap.level].key}` : 'Top level — keep yapping'}</div>
       </a>
       {state.baseline && (
         <div class="border-t border-line pt-4 text-sm text-muted">

@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, isNotNull } from 'drizzle-orm';
 import { db, schema } from '../../db';
-import { feedbackFor, mastery, TONALITY_STEPS, YAP_LEVELS } from '../progression';
+import { feedbackFor, mastery, PASSES_TO_UNLOCK, TONALITY_STEPS, YAP_LEVELS, yapPassDays } from '../progression';
+import { availability } from './program';
 import { currentStreak, getBaseline, getLevel, getLiveBands, localDay, repsAtStep } from './store';
 
 export interface SeriesPoint {
@@ -73,6 +74,8 @@ export function appState() {
   const reps = repsAtStep(tonality.level);
   const lastTransfer = db.select().from(schema.sessions).where(eq(schema.sessions.kind, 'transfer')).orderBy(desc(schema.sessions.startedAt)).get();
   const baseline = getBaseline();
+  const prog = availability();
+  const passDays = yapPassDays(yap.history, yap.level, localDay);
   return {
     baseline,
     liveBands: getLiveBands(),
@@ -83,7 +86,23 @@ export function appState() {
       feedback: feedbackFor(tonality.level, reps),
       history: tonality.history ?? [],
     },
-    yap: { level: yap.level, passes: yap.passes, name: YAP_LEVELS[yap.level - 1]?.name, history: yap.history ?? [] },
+    yap: {
+      level: yap.level,
+      key: YAP_LEVELS[yap.level - 1]?.key ?? `Y${yap.level}`,
+      // passing days at this level (one per calendar day)
+      passes: passDays.length,
+      passDays,
+      passesToUnlock: PASSES_TO_UNLOCK,
+      name: YAP_LEVELS[yap.level - 1]?.name,
+      passedToday: prog.state.passedToday,
+      history: yap.history ?? [],
+    },
+    program: {
+      today: prog.state.today,
+      parts: prog.state.parts,
+      dueStories: prog.state.stories.filter((s) => (s.stage === 1 || s.stage === 2) && s.nextDueDay != null && s.nextDueDay <= prog.state.today).length,
+    },
+    availability: prog.availability,
     streak: currentStreak(),
     today: db.select().from(schema.streaks).where(eq(schema.streaks.day, localDay())).get() ?? null,
     transferDue: !lastTransfer || Date.now() - lastTransfer.startedAt > 7 * 86_400_000,

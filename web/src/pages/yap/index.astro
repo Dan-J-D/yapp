@@ -1,41 +1,74 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import StoryBank from '../../components/yap/StoryBank.svelte';
 import { YAP_LEVELS, PASSES_TO_UNLOCK } from '../../lib/progression';
-import { YAP_MODES } from '../../lib/yap-modes';
-import { getLevel } from '../../lib/server/store';
-const lvl = getLevel('yap');
+import { YAP_MODES, YAP_WHY } from '../../lib/yap-modes';
+import { yapRouteStatus } from '../../lib/daily-program';
+import { appState } from '../../lib/server/stats';
+
+const s = appState();
+const lvl = s.yap;
+const a = s.availability;
 const desc: Record<number, string> = {
-  1: '2 min on a familiar topic. No dead air over 3 s, fewer fillers than your baseline.',
-  2: 'Talk 2 min, retell in 1.5 min (faster), then bridge a pivot with no gap.',
-  3: '30 s PREP plan → 5 min with ≥3 pivots → 90 s compressed summary.',
-  4: '10+ minutes with curveball words every 60–90 s. Recover in under 3 s.',
+  1: 'Story prompts. 30 s plan (scene → what happened → turning point → ending), then tell it 3× in 2:00 / 1:30 / 1:00. Revisit it tomorrow and in a week.',
+  2: 'Opinion / explain prompts planned with PREP (point, reason, example, point), same shrinking retell.',
+  3: '5 minutes with an AI partner who asks about you and switches topic every 60–90 s. Answer at length, ask follow-ups.',
+  4: '10+ minutes with curveball words every 60–90 s. Recover in under 3 s. Weekly, from Daily → More.',
 };
+const pass: Record<number, string> = {
+  1: 'Pass: every telling fills its time; telling 3 is as fast, with fewer mid-clause pauses, no dead air, fewer fillers, and the same pitch variation.',
+  2: 'Pass: same checks as Y1, on an explain topic.',
+  3: 'Pass: 5+ turns averaging 15 s+, 2+ follow-up questions, 2.5 min of your speech, fillers ≤ baseline.',
+  4: 'Pass: 10+ min, 6+ curveballs, 80% of recoveries under 3 s, ≤1 filler after each.',
+};
+const chip: Record<string, string> = { due: 'border-warn text-warn', available: 'border-accent text-accent', done: 'border-good text-good', locked: '' };
 ---
 <Layout title="Yap">
-  <h1 class="mb-1 text-2xl font-bold">Yap stamina</h1>
-  <p class="mb-4 text-muted">Pass a level {PASSES_TO_UNLOCK}× to unlock the next. The variation meter stays on the whole time.</p>
+  <h1 class="mb-1 text-2xl font-bold">Yap</h1>
+  <p class="mb-4 text-muted">
+    Your yap happens in the <a href="/daily" class="text-accent underline">daily base</a>: one topic a day, retold in shrinking time and revisited after a day and a week.
+    {PASSES_TO_UNLOCK} passing days (one per day, whatever route) unlock the next level.
+  </p>
   <div class="space-y-3">
     {YAP_LEVELS.map((l) => {
       const locked = l.level > lvl.level;
       const current = l.level === lvl.level;
+      const done = l.level < lvl.level;
+      const st = yapRouteStatus(l.key, a, lvl.level);
       return (
-        <a href={`/yap/${l.key}`} class={`card flex items-center gap-4 ${locked ? 'opacity-60' : ''} ${current ? 'border-accent' : ''}`}>
-          <div class={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-lg font-black ${current ? 'bg-accent text-accent-fg' : 'bg-surface-2'}`}>{l.key}</div>
+        <a href={`/yap/${l.key}`} class={`card flex items-start gap-4 ${locked ? 'opacity-60' : ''} ${current ? 'border-accent' : ''}`}>
+          <div class={`grid h-12 w-12 shrink-0 place-items-center rounded-xl text-lg font-black ${current ? 'bg-accent text-accent-fg' : done ? 'bg-good text-white' : 'bg-surface-2'}`}>{done ? '✓' : l.key}</div>
           <div class="min-w-0 flex-1">
-            <div class="font-semibold">{l.name} {locked && <span class="chip ml-1">locked</span>}</div>
+            <div class="flex flex-wrap items-center gap-2 font-semibold">{l.name} <span class={`chip ${chip[st.status]}`}>{st.status}</span></div>
             <div class="text-sm text-muted">{desc[l.level]}</div>
-            {current && <div class="mt-1 text-xs text-accent">{lvl.passes}/{PASSES_TO_UNLOCK} passes</div>}
+            <div class="mt-1 text-xs text-muted">{pass[l.level]}</div>
+            <div class="mt-1 text-xs text-muted">{YAP_WHY[l.key]}</div>
+            {current && (
+              <div class="mt-2 flex items-center gap-2 text-xs">
+                <span class="flex gap-1" aria-label={`${lvl.passes} of ${PASSES_TO_UNLOCK} passing days`}>
+                  {Array.from({ length: PASSES_TO_UNLOCK }, (_, i) => <span class={`h-2.5 w-2.5 rounded-full ${i < lvl.passes ? 'bg-accent' : 'bg-surface-2 ring-1 ring-line'}`}></span>)}
+                </span>
+                <span class="text-accent">{lvl.passes}/{PASSES_TO_UNLOCK} passing days{lvl.passedToday ? ' · passed today ✓' : ''}</span>
+              </div>
+            )}
+            <div class="mt-1 text-xs text-muted">{st.reason}</div>
           </div>
         </a>
       );
     })}
   </div>
-  <h2 class="mb-2 mt-8 text-lg font-bold">Extra modes</h2>
+
+  <h2 class="mb-2 mt-8 text-lg font-bold">Story bank</h2>
+  <StoryBank client:only="svelte" />
+
+  <h2 class="mb-2 mt-8 text-lg font-bold">Extras</h2>
+  <p class="mb-3 text-sm text-muted">Practice only — they never count as a yap pass. Also in Daily → More.</p>
   <div class="grid gap-3 sm:grid-cols-2">
     {YAP_MODES.map((m) => (
       <a href={`/yap/${m.mode}`} class="card">
         <div class="font-semibold">{m.title}</div>
         <div class="text-sm text-muted">{m.desc}</div>
+        <div class="mt-1 text-xs text-muted">{m.why}</div>
       </a>
     ))}
   </div>

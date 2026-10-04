@@ -1,11 +1,12 @@
 // Session-level evaluation once every recording of a finished session is analysed:
-// summary stats, yap level pass rules, baseline creation, streaks.
+// summary stats, the yap program (retell / conversation / chaos passes, story schedule), baseline
+// creation, streaks.
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db, schema } from '../../db';
-import { applyYapResult, passL1, passL2, passL3, passL4, type YapResult } from '../progression';
-import { mean, scaleBands, sliceWpm, type FluencyMetrics, type WordIn } from '../scoring';
+import { mean, scaleBands, type FluencyMetrics, type WordIn } from '../scoring';
 import type { RecMeta } from './drills';
-import { bumpStreak, getBaseline, getLevel, getPrefs, getSetting, saveLevel, setSetting } from './store';
+import { applyYapPass, baseCompleteOn, evaluateProgram, updateStoryAfterTelling, type ProgramSummary } from './program';
+import { bumpStreak, getBaseline, getSetting, localDay, markDailyDone, setSetting } from './store';
 
 type M = FluencyMetrics & {
   stSd: number | null;
@@ -78,80 +79,58 @@ export function finalizeSession(sessionId: string, force = false) {
   let passed: boolean | null = null;
   let score: number | null = (summary.expressiveness as number | null) ?? null;
 
-  if (session.kind === 'yap' && /^L[1-4]$/.test(session.mode ?? '')) {
-    const res = evaluateYap(session.mode!, parts);
-    if (res) {
-      summary.yap = res;
-      passed = res.passed;
-      const lvl = getLevel('yap');
-      const levelNum = Number(session.mode!.slice(1));
-      summary.yapLevel = levelNum;
-      if (levelNum === lvl.level) {
-        const next = applyYapResult({ level: lvl.level, passes: lvl.passes }, res.passed);
-        saveLevel('yap', next.level, next.passes, next.unlocked ? `unlocked L${next.level}` : res.passed ? `pass L${levelNum}` : undefined);
-        summary.unlocked = next.unlocked ? next.level : null;
+  // Pass, schedule and streak always belong to the day the session started (analysis or offline
+  // uploads can land hours later).
+  const day = localDay(session.startedAt);
+  const sMeta = (session.meta ?? {}) as Record<string, unknown>;
+  // Level and story writes happen once per session, even when it is re-finalized (re-analysis).
+  const programCounted = !!sMeta.programCounted;
+  if (session.kind === 'daily' || session.kind === 'yap') {
+    const prog = evaluateProgram(session, parts, day);
+    if (prog) {
+      const prev = (session.summary as { program?: ProgramSummary } | null)?.program;
+      if (!programCounted) {
+        if (prog.type === 'retell' && prog.completed && prog.storyId && !prog.practice) {
+          const patch = updateStoryAfterTelling(prog.storyId, session.id, day, prog.result?.passed ?? null);
+          prog.story = patch ? { stage: patch.stage, nextDueDay: patch.nextDueDay } : null;
+        }
+        prog.pass = applyYapPass(prog.countsFor, prog.result, day, session.startedAt);
+      } else {
+        prog.pass = prev?.pass ?? (sMeta.programPass as ProgramSummary['pass']);
+        prog.story = prev?.story ?? (sMeta.programStory as ProgramSummary['story']) ?? null;
       }
+      summary.program = prog;
+      if (prog.result) passed = prog.result.passed;
     }
-  } else if (session.mode === 'retell3') {
-    const tellings = ok.map((p) => ({ wpm: p.m!.wpm, fillersPerMin: p.m!.fillersPerMin, mlr: p.m!.mlr, durationS: p.m!.durationS }));
-    summary.retell = tellings;
-    if (tellings.length >= 2) passed = tellings[tellings.length - 1].wpm >= tellings[0].wpm;
-  } else if (reps.length) {
+  }
+  if (session.kind !== 'yap' && reps.length) {
     score = Math.round((100 * reps.filter((r) => r.onTarget).length) / reps.length);
   }
 
   if (session.kind === 'baseline') createBaseline(session.id, parts);
 
   // Count a session toward streaks only once, even if it is re-analysed later.
-  const counted = !!(session.meta as Record<string, unknown> | null)?.streakCounted;
-  const meta = { ...(session.meta ?? {}), streakCounted: true };
+  const counted = !!sMeta.streakCounted;
+  const prog = summary.program as ProgramSummary | undefined;
+  const meta = {
+    ...sMeta,
+    streakCounted: true,
+    ...(prog ? { programCounted: true, programPass: prog.pass ?? null, programStory: prog.story ?? null } : {}),
+  };
   db.update(schema.sessions).set({ summary, passed, score, meta }).where(eq(schema.sessions.id, sessionId)).run();
+  // The base counts as done only for a real (non-practice) daily session once the whole base is
+  // complete across today's daily sessions; minutes always count toward the streak.
+  const dailyDone = session.kind === 'daily' && !sMeta.practice && baseCompleteOn(day);
   if (!counted) {
-    bumpStreak(session.startedAt, durationS / 60, { daily: session.kind === 'daily', challenge: session.kind === 'challenge' });
+    bumpStreak(session.startedAt, durationS / 60, { daily: dailyDone, challenge: session.kind === 'challenge' });
     maybeRefineBaseline();
+  } else if (dailyDone) {
+    markDailyDone(day);
   }
 }
 
 function seg(parts: Part[], name: string) {
   return parts.find((p) => p.meta.segment === name && p.m);
-}
-
-export function evaluateYap(mode: string, parts: Part[]): YapResult | null {
-  const base = getBaseline();
-  switch (mode) {
-    case 'L1': {
-      const p = seg(parts, 'talk') ?? parts.find((x) => x.m);
-      if (!p?.m) return null;
-      return passL1({ durationS: p.m.durationS, deadAir: p.m.deadAir, fillersPerMin: p.m.fillersPerMin }, base, getPrefs().fillerReductionPct);
-    }
-    case 'L2': {
-      const talk = seg(parts, 'talk');
-      const retell = seg(parts, 'retell');
-      if (!talk?.m || !retell?.m) return null;
-      const pivotCue = retell.m.cues?.find((c) => c.kind === 'pivot');
-      const fillerIdx = (retell.m.fillerIdx ?? []) as number[];
-      const retellWpm = pivotCue ? sliceWpm(retell.words, 0, pivotCue.t, fillerIdx) : retell.m.wpm;
-      return passL2({
-        firstWpm: talk.m.wpm,
-        retellWpm,
-        pivotLatency: pivotCue?.latency ?? null,
-        pivotFillerInGap: pivotCue?.fillerInGap ?? true,
-      });
-    }
-    case 'L3': {
-      const main = seg(parts, 'main');
-      if (!main?.m) return null;
-      const pivots = Array.isArray(main.llm?.pivots) ? (main.llm!.pivots as unknown[]).length : 0;
-      return passL3({ pivots, mlr: main.m.mlr, mainDurationS: main.m.durationS, hasSummary: !!seg(parts, 'summary') }, base);
-    }
-    case 'L4': {
-      const p = seg(parts, 'chaos') ?? parts.find((x) => x.m);
-      if (!p?.m) return null;
-      const cb = (p.m.cues ?? []).filter((c) => c.kind === 'curveball');
-      return passL4({ durationS: p.m.durationS, latencies: cb.map((c) => c.latency), fillersAfter: cb.map((c) => c.fillersAfter) });
-    }
-  }
-  return null;
 }
 
 function createBaseline(sessionId: string, parts: Part[]) {

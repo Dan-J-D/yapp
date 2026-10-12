@@ -35,6 +35,6 @@ const selfHost = hosts.find((h) => ['0.0.0.0', '::', '127.0.0.1'].includes(h)) ?
 // Warm up the app so the job queue and push scheduler start without waiting for a visit.
 setTimeout(() => {
   https
-    .get({ host: selfHost, port: httpsPort, path: '/api/health', rejectUnauthorized: false }, (r) => r.resume())
+    .get({ host: selfHost, port: httpsPort, path: '/api/warmup', rejectUnauthorized: false }, (r) => r.resume())
     .on('error', (e) => console.warn('[start] warm-up failed:', e.message));
 }, 1500);

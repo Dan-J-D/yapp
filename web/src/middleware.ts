@@ -8,6 +8,7 @@ const PUBLIC = [
   /^\/icons\//,
   /^\/(manifest\.webmanifest|sw\.js|offline\.html|favicon\.svg|robots\.txt)$/,
   /^\/(yapp-ca\.crt|yapp\.mobileconfig|api\/ca)$/,
+  /^\/api\/warmup$/,
 ];
 
 export const onRequest = defineMiddleware(async (ctx, next) => {

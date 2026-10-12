@@ -61,18 +61,25 @@ export async function sendPushAll(payload: { title: string; body: string; url: s
 export function startScheduler() {
   if (g.__yappPush) return;
   g.__yappPush = true;
+  let busy = false;
   const tick = async () => {
+    if (busy) return;
+    busy = true;
     try {
       const prefs = getPrefs();
       const now = new Date();
       if (now.getHours() !== prefs.challengeHour) return;
       const day = localDay();
       if (getSetting('lastPushDay', '') === day) return;
-      setSetting('lastPushDay', day);
       const c = await todayChallenge();
-      await sendPushAll({ title: 'Yapp micro-challenge', body: c.text, url: '/everyday?challenge=1' });
+      const { sent, total } = await sendPushAll({ title: 'Yapp micro-challenge', body: c.text, url: '/everyday?challenge=1' });
+      // Only mark the day done once something went out (or there's no one to send to);
+      // if every send failed, the next tick within the hour retries.
+      if (sent > 0 || total === 0) setSetting('lastPushDay', day);
     } catch (e) {
       console.warn('[push] scheduler', (e as Error).message);
+    } finally {
+      busy = false;
     }
   };
   setInterval(tick, 60_000).unref();

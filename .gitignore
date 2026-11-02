@@ -1,4 +1,5 @@
 .env
 data/
+!web/src/data/
 node_modules
 backups/
